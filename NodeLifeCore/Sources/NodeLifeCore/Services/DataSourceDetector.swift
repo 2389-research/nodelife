@@ -30,13 +30,29 @@ public struct DataSourceDetector: Sendable {
 
     public func detectGranola(at path: String) -> DataSourceResult {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: path) else {
+        let cacheFilePath = (path as NSString).appendingPathComponent("cache-v6.json")
+
+        guard fm.fileExists(atPath: cacheFilePath),
+              let data = fm.contents(atPath: cacheFilePath) else {
             return DataSourceResult(found: false, meetingCount: 0, path: path)
         }
 
-        let contents = (try? fm.contentsOfDirectory(atPath: path)) ?? []
-        let jsonCount = contents.filter { $0.hasSuffix(".json") }.count
-        return DataSourceResult(found: jsonCount > 0, meetingCount: jsonCount, path: path)
+        let meetingCount = countGranolaMeetings(in: data)
+        return DataSourceResult(found: meetingCount > 0, meetingCount: meetingCount, path: path)
+    }
+
+    private func countGranolaMeetings(in data: Data) -> Int {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let cache = json["cache"] as? [String: Any],
+              let state = cache["state"] as? [String: Any],
+              let documents = state["documents"] as? [String: [String: Any]] else {
+            return 0
+        }
+
+        return documents.values.filter { doc in
+            doc["type"] as? String == "meeting"
+                && (doc["deleted_at"] == nil || doc["deleted_at"] is NSNull)
+        }.count
     }
 
     public func detectMuesli(at path: String) -> DataSourceResult {

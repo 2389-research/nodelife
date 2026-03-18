@@ -11,7 +11,7 @@ struct SetupWizardView: View {
     @AppStorage("nodelife.sources.granola.enabled") private var granolaEnabled = true
     @AppStorage("nodelife.sources.granola.path") private var granolaPath = GranolaConfig.defaultDataPath
     @AppStorage("nodelife.sources.muesli.enabled") private var muesliEnabled = true
-    @AppStorage("nodelife.sources.muesli.path") private var muesliPath = "~/.local/share/muesli/"
+    @AppStorage("nodelife.sources.muesli.path") private var muesliPath = "~/.local/share/muesli/raw/"
 
     // LLM settings
     @AppStorage("nodelife.llm.provider") private var llmProvider = "anthropic"
