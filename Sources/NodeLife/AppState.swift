@@ -9,6 +9,7 @@ import NodeLifeCore
 final class AppState {
     let database: AppDatabase
     var meetings: [Meeting] = []
+    var entities: [Entity] = []
     var selectedMeetingId: UUID?
     var searchQuery: String = ""
     var isSyncing: Bool = false
@@ -24,5 +25,15 @@ final class AppState {
                 .order(Meeting.Columns.date.desc)
                 .fetchAll(db)
         }
+    }
+
+    func loadEntities() throws {
+        entities = try database.read { db in
+            try Entity.fetchAll(db)
+        }
+    }
+
+    func sync() async {
+        // Stub: full implementation in Task 14
     }
 }
