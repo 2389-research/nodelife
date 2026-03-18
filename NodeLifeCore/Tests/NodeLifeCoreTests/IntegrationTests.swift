@@ -548,3 +548,88 @@ private func insertExtractionRun(in db: Database, meetingID: UUID) throws -> Ext
     #expect(jobs.count == 1)
     #expect(jobs.first?.kind == "extraction")
 }
+
+// MARK: - Phase 2 End-to-End Integration Tests
+
+@Test func normalizationPipeline() throws {
+    let db = try AppDatabase.makeInMemory()
+
+    try db.write { dbConn in
+        var meeting = Meeting(sourceID: "e2e-norm", title: "Team Sync", date: Date(), duration: 1800, rawTranscript: "Harper discussed roadmap with Alice", sourceAdapter: "test")
+        meeting.transcriptStatus = .chunked
+        try meeting.insert(dbConn)
+
+        var chunk1 = MeetingChunk(meetingID: meeting.id, chunkIndex: 0, text: "  Harper  discussed  the  roadmap  ")
+        try chunk1.insert(dbConn)
+        var chunk2 = MeetingChunk(meetingID: meeting.id, chunkIndex: 1, text: "  Alice  agreed  with  the  plan  ")
+        try chunk2.insert(dbConn)
+
+        try TranscriptNormalizer.normalize(meetingId: meeting.id, in: dbConn)
+
+        let m = try Meeting.fetchOne(dbConn, key: meeting.id)
+        #expect(m?.transcriptStatus == .normalized)
+    }
+
+    let chunks = try db.read { db in try MeetingChunk.fetchAll(db) }
+    #expect(chunks.allSatisfy { $0.normalizedText != nil })
+}
+
+@Test func entityResolutionPipeline() async throws {
+    let db = try AppDatabase.makeInMemory()
+
+    try db.write { dbConn in
+        var meeting = Meeting(sourceID: "e2e-resolve", title: "Sync", date: Date(), duration: 60, rawTranscript: "t", sourceAdapter: "test")
+        meeting.transcriptStatus = .extracted
+        try meeting.insert(dbConn)
+
+        var run = ExtractionRun(meetingID: meeting.id, model: "test", promptVersion: "v1")
+        try run.insert(dbConn)
+
+        var chunk = MeetingChunk(meetingID: meeting.id, chunkIndex: 0, text: "test")
+        try chunk.insert(dbConn)
+
+        var e1 = Entity(name: "Harper Reed", kind: .person)
+        try e1.insert(dbConn)
+        var e2 = Entity(name: "Harper Reed", kind: .person)
+        try e2.insert(dbConn)
+
+        var m1 = Mention(entityID: e1.id, meetingChunkID: chunk.id, confidence: 0.9, extractionRunID: run.id)
+        try m1.insert(dbConn)
+        var m2 = Mention(entityID: e2.id, meetingChunkID: chunk.id, confidence: 0.9, extractionRunID: run.id)
+        try m2.insert(dbConn)
+    }
+
+    let resolver = EntityResolver(database: db)
+    let report = try await resolver.resolve()
+
+    #expect(report.mergeCount >= 1)
+
+    let entities = try db.read { db in try Entity.fetchAll(db) }
+    let merged = entities.filter { $0.mergedIntoId != nil }
+    #expect(merged.count >= 1)
+}
+
+@Test func mergeEngineSplitAndUndo() throws {
+    let db = try AppDatabase.makeInMemory()
+    let engine = MergeEngine(database: db)
+
+    try db.write { dbConn in
+        var e1 = Entity(name: "Alice", kind: .person)
+        try e1.insert(dbConn)
+        var e2 = Entity(name: "Alice Smith", kind: .person)
+        try e2.insert(dbConn)
+
+        try engine.merge(primaryId: e1.id, duplicateId: e2.id, reason: "test", in: dbConn)
+        let dup = try Entity.fetchOne(dbConn, key: e2.id)
+        #expect(dup?.mergedIntoId == e1.id)
+
+        let history = try MergeHistory
+            .filter(MergeHistory.Columns.mergedEntityId == e2.id)
+            .filter(MergeHistory.Columns.action == MergeAction.merge.rawValue)
+            .fetchOne(dbConn)!
+        try engine.undoMerge(historyId: history.id, in: dbConn)
+
+        let restored = try Entity.fetchOne(dbConn, key: e2.id)
+        #expect(restored?.mergedIntoId == nil)
+    }
+}
