@@ -21,7 +21,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "NodeLife",
-            dependencies: ["NodeLifeCore"],
+            dependencies: [
+                "NodeLifeCore",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
             path: "Sources/NodeLife",
             swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
         ),
