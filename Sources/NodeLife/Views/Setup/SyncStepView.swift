@@ -11,5 +11,120 @@ struct SyncStepView: View {
     let muesliEnabled: Bool
     let muesliPath: String
     let onFinish: () -> Void
-    var body: some View { Text("Sync (placeholder)") }
+
+    @State private var isSyncing = false
+    @State private var isComplete = false
+    @State private var processedCount = 0
+    @State private var totalCount = 0
+    @State private var skippedCount = 0
+    @State private var currentSource = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            if isComplete {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.green)
+
+                Text("Done!")
+                    .font(.title2.bold())
+
+                if skippedCount > 0 {
+                    Text("Imported \(processedCount - skippedCount) of \(totalCount) meetings (\(skippedCount) skipped)")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Imported \(processedCount) meetings")
+                        .foregroundStyle(.secondary)
+                }
+
+                Button("Finish") {
+                    onFinish()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            } else if isSyncing {
+                ProgressView(value: totalCount > 0 ? Double(processedCount) : 0, total: totalCount > 0 ? Double(totalCount) : 1)
+                    .progressViewStyle(.linear)
+                    .frame(width: 300)
+
+                Text("Syncing \(currentSource)... \(processedCount) of \(totalCount)")
+                    .foregroundStyle(.secondary)
+
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            } else {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 48))
+                    .foregroundStyle(Color.accentColor)
+
+                Text("Ready to Sync")
+                    .font(.title2.bold())
+
+                Text("NodeLife will import your meeting transcripts and prepare them for analysis.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Button("Start Sync") {
+                    Task {
+                        await startSync()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+
+            Spacer()
+        }
+        .padding(40)
+    }
+
+    private func startSync() async {
+        isSyncing = true
+        processedCount = 0
+        totalCount = 0
+        skippedCount = 0
+
+        let jobQueue = JobQueue(dbWriter: database.writer)
+
+        // Sync Granola if enabled
+        if granolaEnabled {
+            let expandedPath = NSString(string: granolaPath).expandingTildeInPath
+            let config = GranolaConfig(dataPath: expandedPath)
+            let adapter = GranolaSourceAdapter(config: config)
+            currentSource = "Granola"
+            await syncSource(adapter: adapter, jobQueue: jobQueue)
+        }
+
+        // Sync Muesli if enabled
+        if muesliEnabled {
+            let expandedPath = NSString(string: muesliPath).expandingTildeInPath
+            let config = MuesliCacheConfig(cachePath: expandedPath)
+            let adapter = MuesliCacheAdapter(config: config)
+            currentSource = "Muesli"
+            await syncSource(adapter: adapter, jobQueue: jobQueue)
+        }
+
+        isComplete = true
+        isSyncing = false
+    }
+
+    private func syncSource(adapter: some SourceAdapter, jobQueue: JobQueue) async {
+        let baseProcessed = processedCount
+        let baseTotal = totalCount
+        let service = SyncService(database: database, sourceAdapter: adapter, jobQueue: jobQueue)
+        for await progress in service.sync() {
+            totalCount = baseTotal + progress.totalCount
+            processedCount = baseProcessed + progress.processedCount
+            if progress.error != nil {
+                skippedCount += 1
+                errorMessage = progress.error
+            }
+        }
+    }
 }
