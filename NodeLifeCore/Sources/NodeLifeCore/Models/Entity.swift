@@ -65,7 +65,6 @@ extension Entity: Codable, FetchableRecord, MutablePersistableRecord {
         public static let lastSeenAt = Column(CodingKeys.lastSeenAt)
     }
 
-    // TODO: uncomment after Task 3
-    // public static let aliases = hasMany(EntityAlias.self)
-    // public static let mentions = hasMany(Mention.self)
+    public static let aliases = hasMany(EntityAlias.self)
+    public static let mentions = hasMany(Mention.self)
 }
