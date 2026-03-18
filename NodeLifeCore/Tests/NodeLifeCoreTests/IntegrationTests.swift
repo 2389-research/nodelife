@@ -437,3 +437,114 @@ private func insertExtractionRun(in db: Database, meetingID: UUID) throws -> Ext
         #expect(fetched?.completedAt != nil)
     }
 }
+
+// MARK: - End-to-End Integration Tests
+
+@Test func endToEndSyncAndSearch() async throws {
+    let db = try AppDatabase.makeInMemory()
+
+    // Create a meeting with chunks directly
+    try db.write { dbConn in
+        var meeting = Meeting(
+            sourceID: "e2e-1",
+            title: "Product Roadmap Discussion",
+            date: Date(),
+            duration: 3600,
+            rawTranscript: "Harper discussed the product roadmap with the team",
+            sourceAdapter: "test"
+        )
+        meeting.transcriptStatus = .cached
+        try meeting.insert(dbConn)
+
+        var chunk = MeetingChunk(meetingID: meeting.id, chunkIndex: 0, text: "Harper discussed the product roadmap")
+        try chunk.insert(dbConn)
+    }
+
+    // Search should find the meeting
+    let searchService = SearchService(database: db)
+    let results = try await searchService.search(query: "roadmap")
+    #expect(!results.isEmpty)
+}
+
+@Test func jobQueueRoundTrip() async throws {
+    let db = try AppDatabase.makeInMemory()
+    let queue = JobQueue(dbWriter: db.writer)
+
+    let job = try await queue.enqueue(kind: "test", payload: "{}".data(using: .utf8)!)
+    let claimed = try await queue.claim(kinds: ["test"])
+
+    #expect(claimed != nil)
+    #expect(claimed?.id == job.id)
+
+    try await queue.complete(jobID: job.id)
+
+    // Verify completed
+    let completed = try db.read { db in
+        try Job.fetchOne(db, key: job.id)
+    }
+    #expect(completed?.status == .completed)
+}
+
+@Test func syncServiceImportsAndSearchFinds() async throws {
+    let db = try AppDatabase.makeInMemory()
+    let queue = JobQueue(dbWriter: db.writer)
+
+    // Create a mock adapter with test data
+    let meetingID = UUID()
+    let meeting = Meeting(
+        id: meetingID,
+        sourceID: "e2e-sync-1",
+        title: "Engineering Sprint Review",
+        date: Date(),
+        duration: 1800,
+        rawTranscript: "The team discussed velocity improvements",
+        sourceAdapter: "mock"
+    )
+    let chunks = [
+        MeetingChunk(meetingID: meetingID, chunkIndex: 0, text: "The team discussed velocity improvements and sprint goals"),
+        MeetingChunk(meetingID: meetingID, chunkIndex: 1, text: "Action items were assigned for the next iteration"),
+    ]
+
+    // Use a simple inline adapter
+    struct E2EAdapter: SourceAdapter {
+        var metadata: AdapterMetadata { AdapterMetadata(id: "mock", name: "E2E Mock", version: "1.0") }
+        let testMeetings: [Meeting]
+        let testChunks: [UUID: [MeetingChunk]]
+
+        func listMeetings(since: Date?) async throws -> [Meeting] { testMeetings }
+        func fetchMeeting(id: String) async throws -> Meeting {
+            guard let m = testMeetings.first(where: { $0.sourceID == id }) else {
+                throw SourceAdapterError.meetingNotFound(id)
+            }
+            return m
+        }
+        func fetchTranscript(meetingID: UUID) async throws -> [MeetingChunk] {
+            testChunks[meetingID] ?? []
+        }
+    }
+
+    let adapter = E2EAdapter(testMeetings: [meeting], testChunks: [meetingID: chunks])
+    let syncService = SyncService(database: db, sourceAdapter: adapter, jobQueue: queue)
+
+    // Run sync
+    for await _ in syncService.sync() {}
+
+    // Verify meeting was stored
+    let storedMeetings = try db.read { db in try Meeting.fetchAll(db) }
+    #expect(storedMeetings.count == 1)
+    #expect(storedMeetings.first?.title == "Engineering Sprint Review")
+
+    // Verify chunks were stored
+    let storedChunks = try db.read { db in try MeetingChunk.fetchAll(db) }
+    #expect(storedChunks.count == 2)
+
+    // Verify search finds the content
+    let searchService = SearchService(database: db)
+    let results = try await searchService.search(query: "velocity")
+    #expect(!results.isEmpty)
+
+    // Verify extraction job was enqueued
+    let jobs = try db.read { db in try Job.fetchAll(db) }
+    #expect(jobs.count == 1)
+    #expect(jobs.first?.kind == "extraction")
+}
