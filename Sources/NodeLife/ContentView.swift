@@ -7,6 +7,7 @@ import GRDB
 
 struct ContentView: View {
     @State var appState: AppState
+    @AppStorage("hasCompletedSetup") private var hasCompletedSetup = false
 
     var body: some View {
         NavigationSplitView {
@@ -32,6 +33,15 @@ struct ContentView: View {
         .task {
             try? appState.loadMeetings()
             try? appState.loadEntities()
+        }
+        .sheet(isPresented: Binding(
+            get: { !hasCompletedSetup },
+            set: { if !$0 { hasCompletedSetup = true } }
+        )) {
+            SetupWizardView(database: appState.database, onFinish: {
+                try? appState.loadMeetings()
+                try? appState.loadEntities()
+            })
         }
     }
 
