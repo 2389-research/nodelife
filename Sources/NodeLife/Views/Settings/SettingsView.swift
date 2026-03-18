@@ -5,11 +5,11 @@ import SwiftUI
 import NodeLifeCore
 
 struct SettingsView: View {
-    @State private var llmProvider: String = "anthropic"
+    @AppStorage("nodelife.llm.provider") private var llmProvider: String = "anthropic"
     @State private var apiKey: String = ""
-    @State private var model: String = "claude-sonnet-4-6"
-    @State private var extractionMode: String = "quick"
-    @State private var openaiBaseURL: String = "https://api.openai.com/v1"
+    @AppStorage("nodelife.llm.model") private var model: String = "claude-sonnet-4-6"
+    @AppStorage("nodelife.extraction.mode") private var extractionMode: String = "quick"
+    @AppStorage("nodelife.llm.baseURL") private var openaiBaseURL: String = "https://api.openai.com/v1"
     @State private var saveStatus: String = ""
 
     private let keychain = KeychainService(serviceName: "com.nodelife.settings")
