@@ -4,6 +4,7 @@
 import Testing
 import Foundation
 import GRDB
+import CoreGraphics
 @testable import NodeLifeCore
 
 // MARK: - Helper
@@ -632,4 +633,75 @@ private func insertExtractionRun(in db: Database, meetingID: UUID) throws -> Ext
         let restored = try Entity.fetchOne(dbConn, key: e2.id)
         #expect(restored?.mergedIntoId == nil)
     }
+}
+
+// MARK: - Phase 3 End-to-End Integration Tests
+
+@Test func graphBuilderProducesProjectionFromEntities() async throws {
+    let db = try AppDatabase.makeInMemory()
+
+    try db.write { dbConn in
+        var e1 = Entity(name: "Alice", kind: .person)
+        try e1.insert(dbConn)
+        var e2 = Entity(name: "Bob", kind: .person)
+        try e2.insert(dbConn)
+        var e3 = Entity(name: "Acme", kind: .organization)
+        try e3.insert(dbConn)
+
+        var meeting = Meeting(sourceID: "graph-e2e", title: "Sync", date: Date(), duration: 60, rawTranscript: "t", sourceAdapter: "test")
+        try meeting.insert(dbConn)
+        var run = ExtractionRun(meetingID: meeting.id, model: "test", promptVersion: "v1")
+        try run.insert(dbConn)
+
+        var r1 = Relationship(sourceEntityID: e1.id, targetEntityID: e3.id, kind: .worksFor, weight: 1.0, extractionRunID: run.id)
+        try r1.insert(dbConn)
+        var r2 = Relationship(sourceEntityID: e2.id, targetEntityID: e3.id, kind: .worksFor, weight: 0.8, extractionRunID: run.id)
+        try r2.insert(dbConn)
+        var r3 = Relationship(sourceEntityID: e1.id, targetEntityID: e2.id, kind: .cooccurs, weight: 0.5, extractionRunID: run.id)
+        try r3.insert(dbConn)
+    }
+
+    let builder = GraphBuilder(database: db)
+
+    // Full graph should have all 3 edges
+    let full = try await builder.build(projectionType: .full, filter: .default)
+    #expect(full.nodes.count == 3)
+    #expect(full.edges.count == 3)
+
+    // Semantic should exclude cooccurrence
+    let semantic = try await builder.build(projectionType: .semantic, filter: .default)
+    #expect(semantic.edges.count == 2)
+
+    // Cooccurrence should only have cooccurrence
+    let cooc = try await builder.build(projectionType: .cooccurrence, filter: .default)
+    #expect(cooc.edges.count == 1)
+}
+
+@Test func forceLayoutProducesPositionedNodes() async throws {
+    let db = try AppDatabase.makeInMemory()
+
+    try db.write { dbConn in
+        var e1 = Entity(name: "X", kind: .person)
+        try e1.insert(dbConn)
+        var e2 = Entity(name: "Y", kind: .organization)
+        try e2.insert(dbConn)
+
+        var meeting = Meeting(sourceID: "layout-e2e", title: "M", date: Date(), duration: 60, rawTranscript: "t", sourceAdapter: "test")
+        try meeting.insert(dbConn)
+        var run = ExtractionRun(meetingID: meeting.id, model: "test", promptVersion: "v1")
+        try run.insert(dbConn)
+
+        var rel = Relationship(sourceEntityID: e1.id, targetEntityID: e2.id, kind: .worksFor, weight: 1.0, extractionRunID: run.id)
+        try rel.insert(dbConn)
+    }
+
+    let builder = GraphBuilder(database: db)
+    let projection = try await builder.build(projectionType: .full, filter: .default)
+    let layout = ForceDirectedLayout(iterations: 50)
+    let positioned = await layout.layout(nodes: projection.nodes, edges: projection.edges, bounds: CGSize(width: 800, height: 600))
+
+    #expect(positioned.count == 2)
+    // Nodes should have been moved from their initial zero positions
+    let allAtOrigin = positioned.allSatisfy { $0.position == .zero }
+    #expect(allAtOrigin == false)
 }

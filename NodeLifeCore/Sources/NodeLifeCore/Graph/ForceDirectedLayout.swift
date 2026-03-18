@@ -25,7 +25,16 @@ public struct ForceDirectedLayout: Sendable {
     public func layout(nodes: [GraphNode], edges: [GraphEdge], bounds: CGSize) async -> [GraphNode] {
         guard !nodes.isEmpty else { return [] }
 
+        // Jitter overlapping nodes so repulsion forces have a direction
         var positions = nodes.map { $0.position }
+        for i in 0..<positions.count {
+            for j in (i + 1)..<positions.count {
+                if positions[i] == positions[j] {
+                    positions[j].x += Double.random(in: -1...1)
+                    positions[j].y += Double.random(in: -1...1)
+                }
+            }
+        }
         var velocities = Array(repeating: CGPoint.zero, count: nodes.count)
         let pinnedFlags = nodes.map { $0.isPinned }
 
