@@ -242,3 +242,37 @@ private func writeFixtureTranscript(to directory: URL, prefix: String, segments:
     #expect(meetings.count == 1)
     #expect(meetings[0].title == "Minimal Meeting")
 }
+
+@Test func muesliAdapterHandlesMetadataWithOnlyCreatorAndAttendees() async throws {
+    let tmpDir = try createTempDir()
+    defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+    // Most common muesli format: only creator and attendees, no title or created_at
+    let metadata: [String: Any] = [
+        "creator": [
+            "name": "Harper Reed",
+            "email": "harper@nata2.org",
+            "details": ["person": ["name": ["fullName": "Harper Reed"]]]
+        ],
+        "attendees": [
+            [
+                "email": "vishal@example.com",
+                "details": ["person": ["name": ["fullName": "Vishal"]]]
+            ]
+        ]
+    ]
+    let data = try JSONSerialization.data(withJSONObject: metadata)
+    try data.write(to: tmpDir.appendingPathComponent("2026-03-16_hangout-vishal-kumar-and-harper-reed_metadata.json"))
+
+    let adapter = MuesliCacheAdapter(config: MuesliCacheConfig(cachePath: tmpDir.path))
+    let meetings = try await adapter.listMeetings(since: nil)
+    #expect(meetings.count == 1)
+    // Title extracted from filename slug
+    #expect(meetings[0].title == "Hangout Vishal Kumar And Harper Reed")
+    // Date extracted from filename prefix
+    let calendar = Calendar(identifier: .gregorian)
+    let components = calendar.dateComponents(in: TimeZone(identifier: "UTC")!, from: meetings[0].date)
+    #expect(components.year == 2026)
+    #expect(components.month == 3)
+    #expect(components.day == 16)
+}

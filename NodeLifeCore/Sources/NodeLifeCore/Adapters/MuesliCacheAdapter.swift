@@ -106,16 +106,14 @@ public struct MuesliCacheAdapter: SourceAdapter, Sendable {
             throw SourceAdapterError.invalidData("Failed to parse metadata JSON: \(error.localizedDescription)")
         }
 
-        // Parse created_at as ISO8601 date
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let meetingDate = formatter.date(from: muesliMetadata.created_at) else {
-            // Try without fractional seconds as fallback
-            let basicFormatter = ISO8601DateFormatter()
-            guard let fallbackDate = basicFormatter.date(from: muesliMetadata.created_at) else {
-                throw SourceAdapterError.invalidData("Failed to parse created_at date: \(muesliMetadata.created_at)")
-            }
-            return try buildMeeting(from: muesliMetadata, date: fallbackDate, file: file, since: since)
+        // Try created_at from JSON first, then fall back to filename date
+        let meetingDate: Date
+        if let createdAt = muesliMetadata.created_at, let parsed = parseISO8601(createdAt) {
+            meetingDate = parsed
+        } else if let filenameDate = parseDateFromFilename(file.lastPathComponent) {
+            meetingDate = filenameDate
+        } else {
+            meetingDate = Date()
         }
 
         return try buildMeeting(from: muesliMetadata, date: meetingDate, file: file, since: since)
@@ -137,10 +135,13 @@ public struct MuesliCacheAdapter: SourceAdapter, Sendable {
         let deterministicID = UUID(uuidString: deterministicUUIDString(from: sourceID))
             ?? UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
 
+        // Use JSON title, or extract a readable title from the filename slug
+        let title = muesliMetadata.title ?? titleFromFilename(file.lastPathComponent)
+
         return Meeting(
             id: deterministicID,
             sourceID: sourceID,
-            title: muesliMetadata.title ?? "Meeting \(sourceID)",
+            title: title,
             date: date,
             duration: 0, // Duration is not available in muesli metadata
             rawTranscript: "",
@@ -216,6 +217,42 @@ public struct MuesliCacheAdapter: SourceAdapter, Sendable {
         return chunks
     }
 
+    private func parseISO8601(_ string: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: string) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: string)
+    }
+
+    /// Extracts a date from muesli filename format: "YYYY-MM-DD_slug_metadata.json"
+    private func parseDateFromFilename(_ filename: String) -> Date? {
+        guard filename.count >= 10 else { return nil }
+        let dateString = String(filename.prefix(10))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter.date(from: dateString)
+    }
+
+    /// Extracts a human-readable title from the filename slug.
+    /// "2024-04-08_hangout-colin-and-harper-reed_metadata.json" → "Hangout Colin and Harper Reed"
+    private func titleFromFilename(_ filename: String) -> String {
+        var name = filename
+        // Strip suffix
+        if name.hasSuffix("_metadata.json") {
+            name = String(name.dropLast("_metadata.json".count))
+        }
+        // Strip date prefix (YYYY-MM-DD_)
+        if name.count > 11, name[name.index(name.startIndex, offsetBy: 10)] == "_" {
+            name = String(name.dropFirst(11))
+        }
+        // Convert dashes to spaces and capitalize words
+        return name.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
+    }
+
     /// Generates a deterministic UUID v5-style string from a source identifier.
     /// Uses a simple hash-based approach to ensure the same sourceID always produces the same UUID.
     private func deterministicUUIDString(from input: String) -> String {
@@ -240,7 +277,7 @@ public struct MuesliCacheAdapter: SourceAdapter, Sendable {
 
 private struct MuesliMetadata: Codable {
     let title: String?
-    let created_at: String
+    let created_at: String?
     let creator: MuesliCreator?
     let attendees: [MuesliAttendee]?
     let sharing_link_visibility: String?
