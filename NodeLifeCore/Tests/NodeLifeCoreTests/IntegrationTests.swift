@@ -41,7 +41,7 @@ private func insertExtractionRun(in db: Database, meetingID: UUID) throws -> Ext
         date: Date(),
         duration: 3600,
         rawTranscript: "Hello",
-        sourceAdapter: "muesli"
+        sourceAdapter: "granola"
     )
 
     try db.write { dbConn in

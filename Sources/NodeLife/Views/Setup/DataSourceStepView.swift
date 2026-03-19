@@ -1,17 +1,13 @@
 // ABOUTME: Step 2 of setup wizard for data source detection and selection
-// ABOUTME: Auto-detects Granola and Muesli directories, shows counts with enable/disable toggles
+// ABOUTME: Auto-detects Granola directory, shows status with enable/disable toggle
 
 import SwiftUI
 import NodeLifeCore
 
 struct DataSourceStepView: View {
     @Binding var granolaEnabled: Bool
-    @Binding var granolaPath: String
-    @Binding var muesliEnabled: Bool
-    @Binding var muesliPath: String
 
     @State private var granolaResult: DataSourceResult?
-    @State private var muesliResult: DataSourceResult?
 
     private let detector = DataSourceDetector()
 
@@ -29,19 +25,13 @@ struct DataSourceStepView: View {
                     result: granolaResult,
                     enabled: $granolaEnabled
                 )
-
-                sourceRow(
-                    name: "Muesli",
-                    result: muesliResult,
-                    enabled: $muesliEnabled
-                )
             }
 
-            if granolaResult?.found != true && muesliResult?.found != true {
+            if granolaResult?.found != true {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("No data sources found.")
                         .font(.headline)
-                    Text("NodeLife supports Granola and Muesli meeting transcripts. Install one of these apps and record some meetings, then re-run setup.")
+                    Text("NodeLife supports Granola meeting transcripts. Install Granola and log in, then re-run setup.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -54,10 +44,8 @@ struct DataSourceStepView: View {
         }
         .padding(40)
         .task {
-            let expandedGranolaPath = NSString(string: granolaPath).expandingTildeInPath
-            let expandedMuesliPath = NSString(string: muesliPath).expandingTildeInPath
-            granolaResult = detector.detectGranola(at: expandedGranolaPath)
-            muesliResult = detector.detectMuesli(at: expandedMuesliPath)
+            let expandedPath = NSString(string: GranolaConfig.defaultDataPath).expandingTildeInPath
+            granolaResult = detector.detectGranola(at: expandedPath)
         }
     }
 

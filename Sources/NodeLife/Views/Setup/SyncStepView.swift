@@ -1,5 +1,5 @@
-// ABOUTME: Step 5 of setup wizard that runs the initial meeting sync
-// ABOUTME: Creates SyncService per enabled source, shows progress bar, handles errors
+// ABOUTME: Step 5 of setup wizard that runs the initial Granola meeting sync
+// ABOUTME: Creates SyncService for Granola source, shows progress bar, handles errors
 
 import SwiftUI
 import NodeLifeCore
@@ -7,9 +7,6 @@ import NodeLifeCore
 struct SyncStepView: View {
     let database: AppDatabase
     let granolaEnabled: Bool
-    let granolaPath: String
-    let muesliEnabled: Bool
-    let muesliPath: String
     let onFinish: () -> Void
 
     @State private var isSyncing = false
@@ -94,20 +91,14 @@ struct SyncStepView: View {
 
         // Sync Granola if enabled
         if granolaEnabled {
-            let expandedPath = NSString(string: granolaPath).expandingTildeInPath
-            let config = GranolaConfig(dataPath: expandedPath)
-            let adapter = GranolaSourceAdapter(config: config)
-            currentSource = "Granola"
-            await syncSource(adapter: adapter, jobQueue: jobQueue)
-        }
-
-        // Sync Muesli if enabled
-        if muesliEnabled {
-            let expandedPath = NSString(string: muesliPath).expandingTildeInPath
-            let config = MuesliCacheConfig(cachePath: expandedPath)
-            let adapter = MuesliCacheAdapter(config: config)
-            currentSource = "Muesli"
-            await syncSource(adapter: adapter, jobQueue: jobQueue)
+            do {
+                let config = try GranolaConfig.fromInstalledApp()
+                let adapter = GranolaSourceAdapter(config: config)
+                currentSource = "Granola"
+                await syncSource(adapter: adapter, jobQueue: jobQueue)
+            } catch {
+                errorMessage = "Failed to connect to Granola: \(error.localizedDescription)"
+            }
         }
 
         isComplete = true

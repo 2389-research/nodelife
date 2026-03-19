@@ -12,7 +12,7 @@ import Foundation
         date: Date(),
         duration: 3600,
         rawTranscript: "Hello world",
-        sourceAdapter: "muesli"
+        sourceAdapter: "granola"
     )
 
     #expect(meeting.id.uuidString.count == 36)

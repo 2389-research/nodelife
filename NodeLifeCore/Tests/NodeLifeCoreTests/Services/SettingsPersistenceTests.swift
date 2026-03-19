@@ -35,23 +35,15 @@ import Foundation
 
     let granolaEnabledKey = "nodelife.sources.granola.enabled.\(testSuffix)"
     let granolaPathKey = "nodelife.sources.granola.path.\(testSuffix)"
-    let muesliEnabledKey = "nodelife.sources.muesli.enabled.\(testSuffix)"
-    let muesliPathKey = "nodelife.sources.muesli.path.\(testSuffix)"
 
     defaults.set(true, forKey: granolaEnabledKey)
     defaults.set("~/Library/Application Support/Granola", forKey: granolaPathKey)
-    defaults.set(false, forKey: muesliEnabledKey)
-    defaults.set("~/.local/share/muesli/", forKey: muesliPathKey)
 
     #expect(defaults.bool(forKey: granolaEnabledKey) == true)
     #expect(defaults.string(forKey: granolaPathKey) == "~/Library/Application Support/Granola")
-    #expect(defaults.bool(forKey: muesliEnabledKey) == false)
-    #expect(defaults.string(forKey: muesliPathKey) == "~/.local/share/muesli/")
 
     defaults.removeObject(forKey: granolaEnabledKey)
     defaults.removeObject(forKey: granolaPathKey)
-    defaults.removeObject(forKey: muesliEnabledKey)
-    defaults.removeObject(forKey: muesliPathKey)
 }
 
 @Test func hasCompletedSetupDefaultsToFalse() {

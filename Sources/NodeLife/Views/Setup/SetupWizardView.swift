@@ -9,10 +9,7 @@ struct SetupWizardView: View {
 
     // Data source settings
     @AppStorage("nodelife.sources.granola.enabled") private var granolaEnabled = true
-    @AppStorage("nodelife.sources.granola.path") private var granolaPath = GranolaConfig.defaultDataPath
-    @AppStorage("nodelife.sources.muesli.enabled") private var muesliEnabled = true
-    @AppStorage("nodelife.sources.muesli.path") private var muesliPath = "~/.local/share/muesli/raw/"
-
+    // Token is discovered automatically from Granola's installed session file
     // LLM settings
     @AppStorage("nodelife.llm.provider") private var llmProvider = "anthropic"
     @AppStorage("nodelife.llm.model") private var llmModel = "claude-sonnet-4-6"
@@ -50,10 +47,7 @@ struct SetupWizardView: View {
                     WelcomeStepView(onNext: { currentStep = 2 })
                 case 2:
                     DataSourceStepView(
-                        granolaEnabled: $granolaEnabled,
-                        granolaPath: $granolaPath,
-                        muesliEnabled: $muesliEnabled,
-                        muesliPath: $muesliPath
+                        granolaEnabled: $granolaEnabled
                     )
                 case 3:
                     LLMConfigStepView(
@@ -68,9 +62,6 @@ struct SetupWizardView: View {
                     SyncStepView(
                         database: database,
                         granolaEnabled: granolaEnabled,
-                        granolaPath: granolaPath,
-                        muesliEnabled: muesliEnabled,
-                        muesliPath: muesliPath,
                         onFinish: {
                             hasCompletedSetup = true
                             onFinish()
