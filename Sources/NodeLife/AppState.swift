@@ -51,8 +51,29 @@ final class AppState {
 
     func sync() async {
         isSyncing = true
-        defer { isSyncing = false }
-        try? loadMeetings()
-        try? loadEntities()
+        syncProgress = "Starting sync..."
+        defer {
+            isSyncing = false
+            syncProgress = ""
+        }
+
+        do {
+            let config = try GranolaConfig.fromInstalledApp()
+            let adapter = GranolaSourceAdapter(config: config)
+            let jobQueue = JobQueue(dbWriter: database.writer)
+            let service = SyncService(database: database, sourceAdapter: adapter, jobQueue: jobQueue)
+
+            for await progress in service.sync() {
+                syncProgress = "\(progress.step) \(progress.processedCount)/\(progress.totalCount)"
+                if let error = progress.error {
+                    syncProgress = error
+                }
+            }
+
+            try? loadMeetings()
+            try? loadEntities()
+        } catch {
+            syncProgress = "Sync failed: \(error.localizedDescription)"
+        }
     }
 }
