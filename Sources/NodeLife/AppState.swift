@@ -1,5 +1,5 @@
 // ABOUTME: Observable application state for the NodeLife macOS app
-// ABOUTME: Manages database, sync, selection, entities, and detail mode switching
+// ABOUTME: Manages database, sync, job runner, selection, entities, and detail mode switching
 
 import SwiftUI
 import NodeLifeCore
@@ -30,9 +30,78 @@ final class AppState {
         _graphViewModel = vm
         return vm
     }
+    @ObservationIgnored
+    private var jobRunner: JobRunner?
 
     init(database: AppDatabase) {
         self.database = database
+    }
+
+    /// Start the background job runner for extraction processing
+    func startJobRunner() {
+        let jobQueue = JobQueue(dbWriter: database.writer)
+        let runner = JobRunner(jobQueue: jobQueue, config: JobRunnerConfig(
+            pollInterval: 2.0,
+            maxConcurrency: 2
+        ))
+        self.jobRunner = runner
+
+        let db = database
+        Task.detached {
+            await runner.register(kind: "extraction", handler: ClosureJobHandler { job in
+                let payload = try JSONDecoder().decode(ExtractionJobPayload.self, from: job.payload)
+                let meetingId = payload.meetingID
+
+                // Step 1: Normalize transcript (cached → chunked → normalized)
+                try db.write { dbConn in
+                    // Set status to chunked (chunks already stored by sync)
+                    if var meeting = try Meeting.fetchOne(dbConn, key: meetingId),
+                       meeting.transcriptStatus == .cached {
+                        meeting.transcriptStatus = .chunked
+                        try meeting.update(dbConn)
+                    }
+                    try TranscriptNormalizer.normalize(meetingId: meetingId, in: dbConn)
+                }
+
+                // Step 2: Build LLM client from user settings
+                let llmClient = try AppState.buildLLMClient()
+
+                // Step 3: Extract entities
+                let extractionService = ExtractionService(database: db, llmClient: llmClient)
+                try await extractionService.extractEntities(meetingId: meetingId)
+
+                // Step 4: Extract relationships
+                let relationshipService = RelationshipExtractionService(database: db, llmClient: llmClient)
+                try await relationshipService.extractRelationships(meetingId: meetingId)
+            })
+
+            try? await runner.start()
+        }
+    }
+
+    /// Build an LLM client from the user's saved settings
+    nonisolated private static func buildLLMClient() throws -> any LLMClient {
+        let keychain = KeychainService(serviceName: "com.nodelife.settings")
+        let provider = UserDefaults.standard.string(forKey: "nodelife.llm.provider") ?? "anthropic"
+        let model = UserDefaults.standard.string(forKey: "nodelife.llm.model") ?? "claude-sonnet-4-6"
+
+        let apiKey: String
+        do {
+            apiKey = try keychain.retrieve(key: "\(provider)_api_key") ?? ""
+        } catch {
+            apiKey = ""
+        }
+
+        guard !apiKey.isEmpty else {
+            throw LLMError.apiError("No API key configured. Open Settings to add one.")
+        }
+
+        if provider == "openai" {
+            let baseURL = UserDefaults.standard.string(forKey: "nodelife.llm.baseURL") ?? "https://api.openai.com/v1"
+            return OpenAIClient(apiKey: apiKey, model: model, baseURL: baseURL)
+        } else {
+            return AnthropicClient(apiKey: apiKey, model: model)
+        }
     }
 
     func loadMeetings() throws {

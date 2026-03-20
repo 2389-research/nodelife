@@ -33,6 +33,7 @@ struct ContentView: View {
         .task {
             try? appState.loadMeetings()
             try? appState.loadEntities()
+            appState.startJobRunner()
         }
         .sheet(isPresented: Binding(
             get: { !hasCompletedSetup },
