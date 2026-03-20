@@ -32,6 +32,7 @@ jobs:
         run: |
           xcodebuild \
             -scheme "$SCHEME" \
+            -destination "platform=macOS" \
             -resolvePackageDependencies
 
       - name: Setup Signing Keychain
@@ -66,6 +67,7 @@ jobs:
           xcodebuild \
             -scheme "$SCHEME" \
             -configuration Release \
+            -destination "platform=macOS" \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \

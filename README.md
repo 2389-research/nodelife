@@ -1,61 +1,86 @@
-# NodeLife 📊✨
+# NodeLife
 
-Welcome to the **NodeLife** repository! This project aims to create a knowledge graph built from meeting transcripts, leveraging a modern tech stack. It combines various features such as entity extraction, relationship mapping, and synchronization with Granola, all packed into a beautiful SwiftUI application for macOS.
+A macOS app that turns your meeting transcripts into a knowledge graph. It pulls transcripts from Granola, extracts the people, projects, and ideas mentioned, figures out how they relate to each other, and renders the whole thing as an interactive force-directed graph.
 
-## 🌟 Summary of the Project
+The idea: you sit through dozens of meetings a week. Names come up, projects get referenced, someone mentions a thing from three weeks ago. NodeLife maps all of that automatically so you can actually see the connections.
 
-NodeLife is an innovative macOS application designed to facilitate the understanding and organization of meeting notes. By transforming raw meeting transcripts into structured data, users can easily retrieve insights, visualize relationships, and navigate through their knowledge graph. The application employs state-of-the-art AI solutions to enhance the quality of entity extraction and relationship inference from natural language.
+## What it does
 
-### Features:
-- User-friendly interface built with SwiftUI.
-- Robust backend powered by SQLite via GRDB.
-- Intelligent entity and relationship extraction using LLMs (Large Language Models).
-- Dual extraction modes: Quick (2-pass) and Deep (5-pass).
-- Integration with Granola for direct transcript import.
+- Syncs meeting transcripts from [Granola](https://www.granola.so) via their API
+- Runs entity extraction (people, orgs, projects, concepts) using Claude or GPT
+- Finds relationships between entities across meetings
+- Deduplicates entities with multiple resolution strategies (exact match, normalized, alias, co-occurrence)
+- Renders everything as a force-directed graph you can pan, zoom, and click through
+- Stores everything locally in SQLite — your data stays on your machine
 
-## 🚀 How to Use
+## Getting started
 
-1. **Clone the Repository**:
-    ```bash
-    git clone https://github.com/harperreed/NodeLife.git
-    ```
-2. **Install Dependencies**:
-    Ensure you have Swift Package Manager set up. Navigate to the project directory and run:
-    ```bash
-    swift build
-    ```
+You'll need macOS 14 (Sonoma) or later and Granola installed.
 
-3. **Run the Application**:
-    To launch the application, use:
-    ```bash
-    swift run NodeLife
-    ```
+```bash
+git clone git@github.com:2389-research/nodelife.git
+cd nodelife
+swift build
+swift run NodeLife
+```
 
-4. **Setup the Application**:
-    Follow the on-screen instructions in the setup wizard to configure your data source and LLM preferences.
+The setup wizard walks you through connecting Granola and picking an LLM provider. It auto-discovers your Granola auth token from the installed app, so there's nothing to copy-paste.
 
-5. **Start Syncing**:
-    Make sure Granola is installed, and begin syncing your meetings! The app will guide you through importing transcripts and creating an interactive graph.
+## How it works
 
-## 🛠️ Tech Info
+NodeLife has two layers:
 
-NodeLife is built with the following technologies:
-- **Swift 6.0**: A powerful and intuitive programming language.
-- **SwiftUI**: The user interface is powered by this modern framework for building app UIs.
-- **GRDB v7+**: A powerful SQLite library for persistent storage.
-- **macOS 14+ (Sonoma)**: Designed specifically for the latest macOS.
-- **Swift Testing Framework**: Used for robust unit testing and validation of functionality throughout the codebase.
+**NodeLifeCore** is the library. Models, database migrations, the Granola API client, extraction pipelines, entity resolution, the graph system — all testable without a UI.
 
-### Project Structure
-- **NodeLife**: The core application that handles the user interface and overall app lifecycle.
-- **NodeLifeCore**: A module that includes models, database interaction, services, and logic for data processing.
+**NodeLife** is the SwiftUI app. Three-pane layout: sidebar with meetings and entities, a detail view for transcripts or the graph canvas, and an inspector panel for drilling into individual entities.
 
-### Testing
-The repository contains a comprehensive suite of tests built using Swift's testing framework, covering all major components and functionalities to ensure reliability and performance.
+The extraction pipeline works in passes:
+1. Normalize the transcript text
+2. Send chunks to an LLM to extract entities with confidence scores
+3. Send another pass to extract relationships between those entities
+4. Run resolution strategies to merge duplicates (e.g., "Bob" and "Robert Smith")
 
-Feel free to dive in, contribute to the project, and help enhance the way we manage our meeting knowledge! 🚀💻
+Everything runs through a job queue with retry and exponential backoff, so if the LLM hiccups mid-extraction, it picks back up.
 
----
-For any inquiries, issues, or feature requests, please open an issue on this repository, and I'll be happy to assist you! 
+## Building
 
-Happy coding! 🎉
+```bash
+swift build        # compile
+swift test         # run all 203 tests
+```
+
+CI runs on every push to main. Tagged releases (`v*`) get built, code-signed, notarized, and published as DMGs on GitHub Releases.
+
+## Tech stack
+
+- Swift 6.0 with strict concurrency
+- SwiftUI for the UI
+- GRDB v7 for SQLite
+- Granola HTTP API for transcript import
+- Claude or OpenAI-compatible endpoints for extraction
+
+## Project structure
+
+```
+Sources/NodeLife/                  # SwiftUI app target
+  Views/                           # All the views (setup wizard, graph, sidebar, etc.)
+  GraphViewModel.swift             # Graph state management
+  ContentView.swift                # Root 3-pane layout
+
+NodeLifeCore/Sources/NodeLifeCore/ # Library target
+  Models/                          # GRDB record types
+  Database/                        # Migrations, AppDatabase
+  Adapters/                        # Granola source adapter
+  Services/                        # Sync, search, API clients
+  Extraction/                      # LLM-powered entity & relationship extraction
+  Resolution/                      # Entity dedup strategies + merge engine
+  Graph/                           # Graph types, builder, layout, cache
+  Jobs/                            # Background job queue + runner
+  LLM/                             # Anthropic + OpenAI clients
+
+NodeLifeCore/Tests/                # 203 tests covering all of the above
+```
+
+## License
+
+MIT
