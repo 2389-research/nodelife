@@ -11,6 +11,7 @@ struct SyncStepView: View {
 
     @State private var isSyncing = false
     @State private var isComplete = false
+    @State private var hasFatalError = false
     @State private var processedCount = 0
     @State private var totalCount = 0
     @State private var skippedCount = 0
@@ -21,7 +22,7 @@ struct SyncStepView: View {
         VStack(spacing: 24) {
             Spacer()
 
-            if isComplete {
+            if isComplete && !hasFatalError {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 48))
                     .foregroundStyle(.green)
@@ -30,7 +31,7 @@ struct SyncStepView: View {
                     .font(.title2.bold())
 
                 if skippedCount > 0 {
-                    Text("Imported \(processedCount - skippedCount) of \(totalCount) meetings (\(skippedCount) skipped)")
+                    Text("Imported \(processedCount) of \(totalCount) meetings (\(skippedCount) skipped)")
                         .foregroundStyle(.secondary)
                 } else {
                     Text("Imported \(processedCount) meetings")
@@ -41,6 +42,37 @@ struct SyncStepView: View {
                     onFinish()
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            } else if isComplete && hasFatalError {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.orange)
+
+                Text("Sync Failed")
+                    .font(.title2.bold())
+
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                HStack(spacing: 16) {
+                    Button("Retry") {
+                        Task {
+                            hasFatalError = false
+                            errorMessage = nil
+                            await startSync()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Continue Anyway") {
+                        onFinish()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
                 .controlSize(.large)
             } else if isSyncing {
                 ProgressView(value: totalCount > 0 ? Double(processedCount) : 0, total: totalCount > 0 ? Double(totalCount) : 1)
@@ -97,6 +129,7 @@ struct SyncStepView: View {
                 currentSource = "Granola"
                 await syncSource(adapter: adapter, jobQueue: jobQueue)
             } catch {
+                hasFatalError = true
                 errorMessage = "Failed to connect to Granola: \(error.localizedDescription)"
             }
         }

@@ -73,26 +73,32 @@ public actor SearchService: Sendable {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
 
+        guard limit >= 0, offset >= 0 else {
+            throw SearchServiceError.invalidQuery("limit and offset must be non-negative")
+        }
+
         // Cancel any previously running search
         currentSearchTask?.cancel()
 
         let db = database
+        // Fetch enough candidates from each source to fill the requested page
+        let fetchLimit = limit + offset
         let task = Task<[SearchResult], Error> {
             var results: [SearchResult] = []
 
             try Task.checkCancellation()
 
-            let chunkResults = try searchMeetingChunks(query: trimmed, limit: limit, database: db)
+            let chunkResults = try searchMeetingChunks(query: trimmed, limit: fetchLimit, database: db)
             results.append(contentsOf: chunkResults)
 
             try Task.checkCancellation()
 
-            let meetingResults = try searchMeetings(query: trimmed, limit: limit, database: db)
+            let meetingResults = try searchMeetings(query: trimmed, limit: fetchLimit, database: db)
             results.append(contentsOf: meetingResults)
 
             try Task.checkCancellation()
 
-            let entityResults = try searchEntities(query: trimmed, limit: limit, database: db)
+            let entityResults = try searchEntities(query: trimmed, limit: fetchLimit, database: db)
             results.append(contentsOf: entityResults)
 
             return Array(

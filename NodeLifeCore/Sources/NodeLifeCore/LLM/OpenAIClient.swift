@@ -23,7 +23,17 @@ public final class OpenAIClient: LLMClient, Sendable {
 
     public func complete(prompt: String, system: String?, maxTokens: Int, temperature: Double?) async throws -> String {
         let request = try buildRequest(prompt: prompt, system: system, maxTokens: maxTokens, temperature: temperature)
-        let (data, _) = try await session.data(for: request)
+        let data: Data
+        do {
+            let (responseData, _) = try await session.data(for: request)
+            data = responseData
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            throw LLMError.networkError(error.localizedDescription)
+        }
         return try OpenAIClient.parseResponseText(from: data)
     }
 

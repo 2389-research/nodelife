@@ -49,7 +49,6 @@ public struct ForceDirectedLayout: Sendable {
         for iteration in 0..<iterations {
             // Repulsive forces (Coulomb's law) between all pairs
             for i in 0..<nodes.count {
-                guard !pinnedFlags[i] else { continue }
                 for j in (i + 1)..<nodes.count {
                     let dx = positions[i].x - positions[j].x
                     let dy = positions[i].y - positions[j].y
@@ -59,8 +58,10 @@ public struct ForceDirectedLayout: Sendable {
                     let fx = (dx / dist) * force
                     let fy = (dy / dist) * force
 
-                    velocities[i].x += fx
-                    velocities[i].y += fy
+                    if !pinnedFlags[i] {
+                        velocities[i].x += fx
+                        velocities[i].y += fy
+                    }
                     if !pinnedFlags[j] {
                         velocities[j].x -= fx
                         velocities[j].y -= fy

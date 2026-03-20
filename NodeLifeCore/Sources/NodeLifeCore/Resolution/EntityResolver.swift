@@ -47,18 +47,20 @@ public actor EntityResolver {
     }
 
     public func resolve(entities: [Entity]) async throws -> ResolutionReport {
-        var report = ResolutionReport(entitiesBefore: entities.count)
+        // Filter out already-merged entities to prevent merge cycles
+        let activeEntities = entities.filter { $0.mergedIntoId == nil }
+        var report = ResolutionReport(entitiesBefore: activeEntities.count)
         var mergedIds: Set<UUID> = []
 
         let sortedStrategies = strategies.sorted { $0.order < $1.order }
 
-        for entity in entities {
+        for entity in activeEntities {
             guard !mergedIds.contains(entity.id) else { continue }
 
-            let activeEntities = entities.filter { !mergedIds.contains($0.id) }
+            let remainingEntities = activeEntities.filter { !mergedIds.contains($0.id) }
 
             for strategy in sortedStrategies {
-                let candidates = try await strategy.findCandidates(for: entity, in: activeEntities, db: database)
+                let candidates = try await strategy.findCandidates(for: entity, in: remainingEntities, db: database)
 
                 for candidate in candidates {
                     guard !mergedIds.contains(candidate.matchedEntity.id) else { continue }

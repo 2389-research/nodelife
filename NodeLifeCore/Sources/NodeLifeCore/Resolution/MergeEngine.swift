@@ -123,13 +123,17 @@ public struct MergeEngine: Sendable {
             let decoder = JSONDecoder()
             let originalRels = try decoder.decode([Relationship].self, from: data)
 
-            // Remove relationships that were relinked to primary
-            try db.execute(
-                sql: "DELETE FROM relationships WHERE sourceEntityID = ? OR targetEntityID = ?",
-                arguments: [history.primaryEntityId, history.primaryEntityId]
-            )
+            // Delete only the specific relinked relationships (by their IDs),
+            // preserving any relationships the primary entity had before the merge
+            let relIDs = originalRels.map(\.id)
+            for relID in relIDs {
+                try db.execute(
+                    sql: "DELETE FROM relationships WHERE id = ?",
+                    arguments: [relID]
+                )
+            }
 
-            // Re-insert original relationships
+            // Re-insert original relationships with their original entity references
             for var rel in originalRels {
                 try rel.insert(db)
             }

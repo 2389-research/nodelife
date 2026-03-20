@@ -7,6 +7,7 @@ import NodeLifeCore
 struct GraphCanvasView: View {
     @Bindable var viewModel: GraphViewModel
     @State private var dragStartOffset: CGPoint = .zero
+    @State private var zoomStart: CGFloat = 1.0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +29,16 @@ struct GraphCanvasView: View {
             if viewModel.projection == nil {
                 await viewModel.loadGraph()
             }
+        }
+        .onChange(of: viewModel.cameraOffset) { _, newValue in
+            // Sync drag baseline when camera is reset externally
+            if newValue == .zero {
+                dragStartOffset = .zero
+            }
+        }
+        .onChange(of: viewModel.cameraZoom) { _, newValue in
+            // Sync zoom baseline when camera is reset externally
+            zoomStart = newValue
         }
     }
 
@@ -95,7 +106,10 @@ struct GraphCanvasView: View {
             .gesture(
                 MagnifyGesture()
                     .onChanged { value in
-                        viewModel.cameraZoom = max(0.1, min(10.0, value.magnification))
+                        viewModel.cameraZoom = max(0.1, min(10.0, zoomStart * value.magnification))
+                    }
+                    .onEnded { _ in
+                        zoomStart = viewModel.cameraZoom
                     }
             )
         }

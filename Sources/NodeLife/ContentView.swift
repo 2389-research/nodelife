@@ -36,9 +36,10 @@ struct ContentView: View {
         }
         .sheet(isPresented: Binding(
             get: { !hasCompletedSetup },
-            set: { if !$0 { hasCompletedSetup = true } }
+            set: { _ in }
         )) {
             SetupWizardView(database: appState.database, onFinish: {
+                hasCompletedSetup = true
                 try? appState.loadMeetings()
                 try? appState.loadEntities()
             })

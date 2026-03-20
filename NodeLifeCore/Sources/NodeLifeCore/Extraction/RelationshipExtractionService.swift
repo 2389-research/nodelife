@@ -97,10 +97,12 @@ public struct RelationshipExtractionService: Sendable {
 
             let extracted = try Self.parseRelationshipResponse(response)
 
-            // Build entity canonical name to ID lookup
-            let entityLookup = Dictionary(
-                uniqueKeysWithValues: entities.map { ($0.canonicalName, $0.id) }
-            )
+            // Build entity lookup keyed by lowercased canonical name and by "name (kind)" format
+            var entityLookup: [String: UUID] = [:]
+            for entity in entities {
+                entityLookup[entity.canonicalName.lowercased()] = entity.id
+                entityLookup["\(entity.canonicalName) (\(entity.kind.rawValue))".lowercased()] = entity.id
+            }
 
             try database.write { db in
                 for rel in extracted {

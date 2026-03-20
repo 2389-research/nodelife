@@ -31,6 +31,10 @@ public final class AnthropicClient: LLMClient, Sendable {
         do {
             let (responseData, _) = try await session.data(for: request)
             data = responseData
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
         } catch {
             throw LLMError.networkError(error.localizedDescription)
         }

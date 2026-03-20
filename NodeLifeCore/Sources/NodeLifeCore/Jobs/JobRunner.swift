@@ -112,7 +112,9 @@ public actor JobRunner {
         while !Task.isCancelled && isRunning {
             do {
                 while activeJobs < config.maxConcurrency {
-                    let kinds = config.jobKinds.isEmpty ? Array(handlers.keys) : config.jobKinds
+                    let registeredKinds = Array(handlers.keys)
+                    guard !registeredKinds.isEmpty else { break }
+                    let kinds = config.jobKinds.isEmpty ? registeredKinds : config.jobKinds.filter { handlers[$0] != nil }
                     guard let job = try await jobQueue.claim(kinds: kinds) else {
                         break
                     }

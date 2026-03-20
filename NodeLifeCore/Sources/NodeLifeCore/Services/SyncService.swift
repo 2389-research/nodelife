@@ -156,7 +156,8 @@ public struct SyncService: Sendable {
         return meetings.filter { !existingSourceIDs.contains($0.sourceID) }
     }
 
-    /// Import a single new meeting: store it, fetch chunks, store chunks, enqueue extraction
+    /// Import a single new meeting: store it, fetch chunks, store chunks, enqueue extraction.
+    /// If transcript fetch or job enqueue fails, the meeting is removed so it can be retried on next sync.
     private func importNewMeeting(
         _ meeting: Meeting,
         adapter: any SourceAdapter,
@@ -174,16 +175,25 @@ public struct SyncService: Sendable {
             try meetingToStore.insert(db)
         }
 
-        // Fetch and store transcript chunks
-        let chunks = try await adapter.fetchTranscript(meetingID: meeting.id)
-        try storeMeetingChunks(chunks, database: database)
+        do {
+            // Fetch and store transcript chunks
+            let chunks = try await adapter.fetchTranscript(meetingID: meeting.id)
+            try storeMeetingChunks(chunks, database: database)
 
-        // Enqueue extraction job
-        try await enqueueExtractionJob(
-            meetingID: meeting.id,
-            sourceAdapter: adapter.metadata.id,
-            jobQueue: jobQueue
-        )
+            // Enqueue extraction job
+            try await enqueueExtractionJob(
+                meetingID: meeting.id,
+                sourceAdapter: adapter.metadata.id,
+                jobQueue: jobQueue
+            )
+        } catch {
+            // Clean up the orphaned meeting so it can be retried on next sync
+            try? database.write { db in
+                _ = try Meeting.filter(Meeting.Columns.id == meeting.id).deleteAll(db)
+                _ = try MeetingChunk.filter(MeetingChunk.Columns.meetingID == meeting.id).deleteAll(db)
+            }
+            throw error
+        }
     }
 
     /// Store transcript chunks in the database
