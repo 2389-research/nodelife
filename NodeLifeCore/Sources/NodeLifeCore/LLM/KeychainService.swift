@@ -16,33 +16,26 @@ public struct KeychainService: Sendable {
             throw KeychainError.encodingFailed
         }
 
-        let query: [String: Any] = [
+        // Delete any existing item first to avoid ACL conflicts across rebuilds
+        let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: key,
         ]
+        SecItemDelete(deleteQuery as CFDictionary)
 
-        let attributes: [String: Any] = [
+        // Add with kSecAttrAccessible so the item is readable without code-signing checks
+        let addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: key,
             kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
         ]
 
-        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-
-        if updateStatus == errSecItemNotFound {
-            var addQuery = query
-            addQuery[kSecValueData as String] = data
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            if addStatus == errSecDuplicateItem {
-                // Item was added concurrently; retry as update
-                let retryStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-                guard retryStatus == errSecSuccess else {
-                    throw KeychainError.saveFailed(status: retryStatus)
-                }
-            } else if addStatus != errSecSuccess {
-                throw KeychainError.saveFailed(status: addStatus)
-            }
-        } else if updateStatus != errSecSuccess {
-            throw KeychainError.saveFailed(status: updateStatus)
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+            throw KeychainError.saveFailed(status: addStatus)
         }
     }
 

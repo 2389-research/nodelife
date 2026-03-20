@@ -22,6 +22,10 @@ final class AppState {
     var isSyncing: Bool = false
     var syncProgress: String = ""
     var detailMode: DetailMode = .meeting
+    var jobsPending: Int = 0
+    var jobsCompleted: Int = 0
+    var jobsFailed: Int = 0
+    var jobsTotal: Int = 0
     @ObservationIgnored
     private var _graphViewModel: GraphViewModel?
     var graphViewModel: GraphViewModel {
@@ -32,6 +36,8 @@ final class AppState {
     }
     @ObservationIgnored
     private var jobRunner: JobRunner?
+    @ObservationIgnored
+    private var jobPollingTask: Task<Void, Never>?
 
     init(database: AppDatabase) {
         self.database = database
@@ -64,7 +70,10 @@ final class AppState {
                 }
 
                 // Step 2: Build LLM client from user settings
-                let llmClient = try AppState.buildLLMClient()
+                // Read settings on main actor to avoid keychain access issues
+                let llmClient = try await MainActor.run {
+                    try AppState.buildLLMClient()
+                }
 
                 // Step 3: Extract entities
                 let extractionService = ExtractionService(database: db, llmClient: llmClient)
@@ -77,10 +86,43 @@ final class AppState {
 
             try? await runner.start()
         }
+
+        startJobPolling()
+    }
+
+    /// Poll the job queue for progress updates
+    private func startJobPolling() {
+        jobPollingTask?.cancel()
+        jobPollingTask = Task {
+            let jobQueue = JobQueue(dbWriter: database.writer)
+            while !Task.isCancelled {
+                do {
+                    let pending = try await jobQueue.count(status: .pending)
+                    let running = try await jobQueue.count(status: .running)
+                    let completed = try await jobQueue.count(status: .completed)
+                    let failed = try await jobQueue.count(status: .failed)
+                    let total = pending + running + completed + failed
+
+                    await MainActor.run {
+                        self.jobsPending = pending + running
+                        self.jobsCompleted = completed
+                        self.jobsFailed = failed
+                        self.jobsTotal = total
+                    }
+
+                    // Refresh entities when jobs complete
+                    if completed > 0 {
+                        try? loadEntities()
+                    }
+                } catch {}
+
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
     }
 
     /// Build an LLM client from the user's saved settings
-    nonisolated private static func buildLLMClient() throws -> any LLMClient {
+    private static func buildLLMClient() throws -> any LLMClient {
         let keychain = KeychainService(serviceName: "com.nodelife.settings")
         let provider = UserDefaults.standard.string(forKey: "nodelife.llm.provider") ?? "anthropic"
         let model = UserDefaults.standard.string(forKey: "nodelife.llm.model") ?? "claude-sonnet-4-6"

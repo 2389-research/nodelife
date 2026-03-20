@@ -40,6 +40,30 @@ struct SidebarView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            if appState.jobsPending > 0 {
+                VStack(spacing: 6) {
+                    ProgressView(
+                        value: Double(appState.jobsCompleted),
+                        total: Double(max(appState.jobsTotal, 1))
+                    )
+                    HStack {
+                        Text("Extracting \(appState.jobsCompleted)/\(appState.jobsTotal)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if appState.jobsFailed > 0 {
+                            Text("\(appState.jobsFailed) failed")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.bar)
+            }
+        }
         .searchable(text: $appState.searchQuery)
         .navigationTitle("NodeLife")
         .toolbar {
