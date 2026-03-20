@@ -18,6 +18,7 @@ jobs:
       SCHEME: NodeLife
       BUNDLE_ID: ai.2389.nodelife
       TEAM_ID: HD9NM9NSMK
+      SPARKLE_FEED_URL: https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml
 
     steps:
       - name: Checkout
@@ -59,6 +60,8 @@ jobs:
 
       - name: Build Release App
         id: build
+        env:
+          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
@@ -90,7 +93,17 @@ jobs:
           APP_PATH="$PRODUCTS_DIR/$APP_BUNDLE_NAME"
           mkdir -p "$APP_PATH/Contents/MacOS"
           mkdir -p "$APP_PATH/Contents/Resources"
+          mkdir -p "$APP_PATH/Contents/Frameworks"
           cp "$EXECUTABLE" "$APP_PATH/Contents/MacOS/$APP_NAME"
+
+          # Copy Sparkle.framework into the app bundle
+          SPARKLE_FW=$(find build/DerivedData -name "Sparkle.framework" -path "*/Release/*" -not -path "*/Sparkle.framework/*" | head -1)
+          if [ -n "$SPARKLE_FW" ]; then
+            cp -R "$SPARKLE_FW" "$APP_PATH/Contents/Frameworks/"
+            echo "Copied Sparkle.framework from $SPARKLE_FW"
+          else
+            echo "Warning: Sparkle.framework not found in build products"
+          fi
 
           cat > "$APP_PATH/Contents/Info.plist" << PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -121,6 +134,10 @@ jobs:
             <true/>
             <key>NSSupportsSuddenTermination</key>
             <true/>
+            <key>SUFeedURL</key>
+            <string>$SPARKLE_FEED_URL</string>
+            <key>SUPublicEDKey</key>
+            <string>$SPARKLE_PUBLIC_ED_KEY</string>
           </dict>
           </plist>
           PLIST
@@ -226,7 +243,7 @@ jobs:
           xcrun stapler staple "$APP_PATH"
           rm "$API_KEY_PATH"
 
-          # Create distributable ZIP
+          # Create distributable ZIP (used by Sparkle for updates)
           APP_ZIP="$ARTIFACTS_DIR/NodeLife-${VERSION}-macOS.zip"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$APP_ZIP"
 
@@ -272,6 +289,44 @@ jobs:
 
           echo "app_dmg=$APP_DMG" >> "$GITHUB_OUTPUT"
 
+      - name: Build Sparkle Appcast Tool
+        run: |
+          set -euo pipefail
+
+          SPARKLE_SOURCE="$RUNNER_TEMP/Sparkle"
+          SPARKLE_BUILD="$RUNNER_TEMP/sparkle-build"
+
+          git clone --depth 1 https://github.com/sparkle-project/Sparkle.git "$SPARKLE_SOURCE"
+          xcodebuild \
+            -project "$SPARKLE_SOURCE/Sparkle.xcodeproj" \
+            -scheme generate_appcast \
+            -configuration Release \
+            -derivedDataPath "$SPARKLE_BUILD" \
+            build
+
+      - name: Generate Sparkle Appcast
+        env:
+          SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
+        run: |
+          set -euo pipefail
+
+          SPARKLE_BUILD="$RUNNER_TEMP/sparkle-build"
+          GENERATE_APPCAST="$SPARKLE_BUILD/Build/Products/Release/generate_appcast"
+          ARTIFACTS_DIR="${{ steps.notarize.outputs.artifacts_dir }}"
+          APPCAST_DIR="$RUNNER_TEMP/appcast"
+          ED_KEY_FILE="$RUNNER_TEMP/sparkle-private-key"
+
+          mkdir -p "$APPCAST_DIR"
+          cp "${{ steps.notarize.outputs.app_zip }}" "$APPCAST_DIR/"
+          printf '%s' "$SPARKLE_PRIVATE_ED_KEY" > "$ED_KEY_FILE"
+
+          "$GENERATE_APPCAST" "$APPCAST_DIR" \
+            --download-url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/" \
+            --ed-key-file "$ED_KEY_FILE"
+
+          cp "$APPCAST_DIR/appcast.xml" "$ARTIFACTS_DIR/appcast.xml"
+          rm "$ED_KEY_FILE"
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -279,6 +334,7 @@ jobs:
           files: |
             ${{ steps.notarize.outputs.app_zip }}
             ${{ steps.dmg.outputs.app_dmg }}
+            ${{ steps.notarize.outputs.artifacts_dir }}/appcast.xml
           generate_release_notes: true
           body: |
             ## Installation
@@ -294,7 +350,7 @@ jobs:
 
             ---
 
-            **Note:** This build is code signed and notarized with Developer ID.
+            **Note:** This build is code signed and notarized with Developer ID. The app checks for updates automatically via Sparkle.
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
@@ -303,6 +359,7 @@ jobs:
           path: |
             ${{ steps.notarize.outputs.app_zip }}
             ${{ steps.dmg.outputs.app_dmg }}
+            ${{ steps.notarize.outputs.artifacts_dir }}/appcast.xml
 
       - name: Cleanup Keychain
         if: always()

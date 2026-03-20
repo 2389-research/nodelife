@@ -7,6 +7,7 @@ import NodeLifeCore
 @main
 struct NodeLifeApp: App {
     @State private var appState: AppState
+    private let sparkleUpdateController = SparkleUpdateController()
 
     init() {
         do {
@@ -22,5 +23,13 @@ struct NodeLifeApp: App {
             ContentView(appState: appState)
         }
         .defaultSize(width: 1200, height: 800)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    sparkleUpdateController.checkForUpdates()
+                }
+                .disabled(!sparkleUpdateController.canCheckForUpdates)
+            }
+        }
     }
 }
