@@ -56,7 +56,7 @@ struct DataSourceStepView: View {
                 if result.found {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                    Text("\(name) (\(result.meetingCount) meetings)")
+                    Text(name)
                     Spacer()
                     Toggle("", isOn: enabled)
                         .labelsHidden()
