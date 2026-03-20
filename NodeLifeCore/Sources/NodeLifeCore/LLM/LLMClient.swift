@@ -37,12 +37,17 @@ public protocol LLMClient: Sendable {
         prompt: String,
         system: String?,
         maxTokens: Int,
-        temperature: Double?
+        temperature: Double?,
+        jsonMode: Bool
     ) async throws -> String
 }
 
 extension LLMClient {
     public func complete(prompt: String, system: String? = nil) async throws -> String {
-        try await complete(prompt: prompt, system: system, maxTokens: 4096, temperature: nil)
+        try await complete(prompt: prompt, system: system, maxTokens: 4096, temperature: nil, jsonMode: false)
+    }
+
+    public func complete(prompt: String, system: String?, maxTokens: Int, temperature: Double?) async throws -> String {
+        try await complete(prompt: prompt, system: system, maxTokens: maxTokens, temperature: temperature, jsonMode: false)
     }
 }

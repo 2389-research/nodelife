@@ -92,7 +92,8 @@ public struct RelationshipExtractionService: Sendable {
                 prompt: prompt.userMessage,
                 system: prompt.systemPrompt,
                 maxTokens: 4096,
-                temperature: 0.0
+                temperature: 0.0,
+                jsonMode: true
             )
 
             let extracted = try Self.parseRelationshipResponse(response)

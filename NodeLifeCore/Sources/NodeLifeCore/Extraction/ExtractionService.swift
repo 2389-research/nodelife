@@ -106,7 +106,8 @@ public struct ExtractionService: Sendable {
                 prompt: prompt.userMessage,
                 system: prompt.systemPrompt,
                 maxTokens: 4096,
-                temperature: 0.0
+                temperature: 0.0,
+                jsonMode: true
             )
 
             let extractedEntities = try Self.parseEntityResponse(response)

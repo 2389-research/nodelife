@@ -21,10 +21,12 @@ public final class AnthropicClient: LLMClient, Sendable {
         prompt: String,
         system: String?,
         maxTokens: Int,
-        temperature: Double?
+        temperature: Double?,
+        jsonMode: Bool = false
     ) async throws -> String {
         let request = try buildRequest(
-            prompt: prompt, system: system, maxTokens: maxTokens, temperature: temperature
+            prompt: prompt, system: system, maxTokens: maxTokens, temperature: temperature,
+            jsonMode: jsonMode
         )
 
         let data: Data
@@ -39,7 +41,12 @@ public final class AnthropicClient: LLMClient, Sendable {
             throw LLMError.networkError(error.localizedDescription)
         }
 
-        return try AnthropicClient.parseResponseText(from: data)
+        var text = try AnthropicClient.parseResponseText(from: data)
+        // Prepend the prefilled "{" that the model continues from
+        if jsonMode {
+            text = "{" + text
+        }
+        return text
     }
 
     // Internal for testing
@@ -47,7 +54,8 @@ public final class AnthropicClient: LLMClient, Sendable {
         prompt: String,
         system: String?,
         maxTokens: Int,
-        temperature: Double?
+        temperature: Double?,
+        jsonMode: Bool = false
     ) throws -> URLRequest {
         var request = URLRequest(url: AnthropicClient.apiURL)
         request.httpMethod = "POST"
@@ -55,12 +63,19 @@ public final class AnthropicClient: LLMClient, Sendable {
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue(AnthropicClient.apiVersion, forHTTPHeaderField: "anthropic-version")
 
+        var messages: [[String: String]] = [
+            ["role": "user", "content": prompt]
+        ]
+
+        // Prefill assistant response with "{" to force JSON output
+        if jsonMode {
+            messages.append(["role": "assistant", "content": "{"])
+        }
+
         var body: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
-            "messages": [
-                ["role": "user", "content": prompt]
-            ]
+            "messages": messages
         ]
 
         if let system = system {
