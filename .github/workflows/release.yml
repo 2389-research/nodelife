@@ -76,13 +76,56 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             clean build
 
-          APP_PATH="build/DerivedData/Build/Products/Release/$APP_BUNDLE_NAME"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "App bundle not found at: $APP_PATH"
-            find build/DerivedData -name "*.app" -type d
+          # SPM executable targets produce a bare binary, not an .app bundle.
+          # Construct the .app bundle manually.
+          PRODUCTS_DIR="build/DerivedData/Build/Products/Release"
+          EXECUTABLE="$PRODUCTS_DIR/$APP_NAME"
+
+          if [ ! -f "$EXECUTABLE" ]; then
+            echo "Executable not found at: $EXECUTABLE"
+            ls -la "$PRODUCTS_DIR/"
             exit 1
           fi
 
+          APP_PATH="$PRODUCTS_DIR/$APP_BUNDLE_NAME"
+          mkdir -p "$APP_PATH/Contents/MacOS"
+          mkdir -p "$APP_PATH/Contents/Resources"
+          cp "$EXECUTABLE" "$APP_PATH/Contents/MacOS/$APP_NAME"
+
+          cat > "$APP_PATH/Contents/Info.plist" << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>$APP_NAME</string>
+            <key>CFBundleIdentifier</key>
+            <string>$BUNDLE_ID</string>
+            <key>CFBundleName</key>
+            <string>$APP_NAME</string>
+            <key>CFBundleDisplayName</key>
+            <string>NodeLife</string>
+            <key>CFBundleVersion</key>
+            <string>$BUILD_NUMBER</string>
+            <key>CFBundleShortVersionString</key>
+            <string>$VERSION</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleInfoDictionaryVersion</key>
+            <string>6.0</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>14.0</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>NSSupportsAutomaticTermination</key>
+            <true/>
+            <key>NSSupportsSuddenTermination</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+          echo "Built $APP_BUNDLE_NAME ($VERSION, build $BUILD_NUMBER)"
           echo "app_path=$APP_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Codesign App Bundle
