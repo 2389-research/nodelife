@@ -11,7 +11,7 @@ public final class OpenAIClient: LLMClient, Sendable {
 
     public init(
         apiKey: String,
-        model: String = "gpt-4o",
+        model: String = "gpt-5.4-nano",
         baseURL: String = "https://api.openai.com/v1",
         session: URLSession = .shared
     ) {
@@ -55,7 +55,7 @@ public final class OpenAIClient: LLMClient, Sendable {
         var body: [String: Any] = [
             "model": model,
             "messages": messages,
-            "max_tokens": maxTokens
+            "max_completion_tokens": maxTokens
         ]
         if let temperature = temperature {
             body["temperature"] = temperature
