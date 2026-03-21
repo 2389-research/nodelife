@@ -174,11 +174,13 @@ public struct ExtractionService: Sendable {
 
     nonisolated(unsafe) static let entityExtractionSchema: [String: Any] = [
         "type": "object",
+        "additionalProperties": false,
         "properties": [
             "entities": [
                 "type": "array",
                 "items": [
                     "type": "object",
+                    "additionalProperties": false,
                     "properties": [
                         "name": ["type": "string"],
                         "type": ["type": "string"],
@@ -187,6 +189,7 @@ public struct ExtractionService: Sendable {
                             "type": "array",
                             "items": [
                                 "type": "object",
+                                "additionalProperties": false,
                                 "properties": [
                                     "surface_form": ["type": "string"],
                                     "chunk_ordinal": ["type": "integer"]

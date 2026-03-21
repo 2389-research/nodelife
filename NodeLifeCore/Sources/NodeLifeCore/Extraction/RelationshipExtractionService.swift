@@ -152,11 +152,13 @@ public struct RelationshipExtractionService: Sendable {
 
     nonisolated(unsafe) static let relationshipExtractionSchema: [String: Any] = [
         "type": "object",
+        "additionalProperties": false,
         "properties": [
             "relationships": [
                 "type": "array",
                 "items": [
                     "type": "object",
+                    "additionalProperties": false,
                     "properties": [
                         "from_entity": ["type": "string"],
                         "to_entity": ["type": "string"],
