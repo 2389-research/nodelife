@@ -21,8 +21,8 @@ public final class OpenAIClient: LLMClient, Sendable {
         self.session = session
     }
 
-    public func complete(prompt: String, system: String?, maxTokens: Int, temperature: Double?, jsonMode: Bool = false) async throws -> String {
-        let request = try buildRequest(prompt: prompt, system: system, maxTokens: maxTokens, temperature: temperature, jsonMode: jsonMode)
+    public func complete(prompt: String, system: String?, maxTokens: Int, temperature: Double?, jsonSchema: [String: Any]? = nil) async throws -> String {
+        let request = try buildRequest(prompt: prompt, system: system, maxTokens: maxTokens, temperature: temperature, jsonSchema: jsonSchema)
         let data: Data
         do {
             let (responseData, _) = try await session.data(for: request)
@@ -37,7 +37,7 @@ public final class OpenAIClient: LLMClient, Sendable {
         return try OpenAIClient.parseResponseText(from: data)
     }
 
-    func buildRequest(prompt: String, system: String?, maxTokens: Int, temperature: Double?, jsonMode: Bool = false) throws -> URLRequest {
+    func buildRequest(prompt: String, system: String?, maxTokens: Int, temperature: Double?, jsonSchema: [String: Any]? = nil) throws -> URLRequest {
         guard let url = URL(string: "\(baseURL)/chat/completions") else {
             throw LLMError.apiError("Invalid base URL: \(baseURL)")
         }
@@ -60,7 +60,7 @@ public final class OpenAIClient: LLMClient, Sendable {
         if let temperature = temperature {
             body["temperature"] = temperature
         }
-        if jsonMode {
+        if jsonSchema != nil {
             body["response_format"] = ["type": "json_object"]
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

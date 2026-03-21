@@ -107,7 +107,7 @@ public struct ExtractionService: Sendable {
                 system: prompt.systemPrompt,
                 maxTokens: 4096,
                 temperature: 0.0,
-                jsonMode: true
+                jsonSchema: Self.entityExtractionSchema
             )
 
             let extractedEntities = try Self.parseEntityResponse(response)
@@ -169,6 +169,38 @@ public struct ExtractionService: Sendable {
             throw error
         }
     }
+
+    // MARK: - JSON Schema
+
+    nonisolated(unsafe) static let entityExtractionSchema: [String: Any] = [
+        "type": "object",
+        "properties": [
+            "entities": [
+                "type": "array",
+                "items": [
+                    "type": "object",
+                    "properties": [
+                        "name": ["type": "string"],
+                        "type": ["type": "string"],
+                        "confidence": ["type": "number"],
+                        "mentions": [
+                            "type": "array",
+                            "items": [
+                                "type": "object",
+                                "properties": [
+                                    "surface_form": ["type": "string"],
+                                    "chunk_ordinal": ["type": "integer"]
+                                ],
+                                "required": ["surface_form", "chunk_ordinal"]
+                            ]
+                        ]
+                    ],
+                    "required": ["name", "type", "confidence", "mentions"]
+                ]
+            ]
+        ],
+        "required": ["entities"]
+    ]
 
     // MARK: - Static Helpers
 

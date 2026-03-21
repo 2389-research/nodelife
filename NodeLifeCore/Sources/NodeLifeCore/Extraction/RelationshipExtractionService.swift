@@ -93,7 +93,7 @@ public struct RelationshipExtractionService: Sendable {
                 system: prompt.systemPrompt,
                 maxTokens: 4096,
                 temperature: 0.0,
-                jsonMode: true
+                jsonSchema: Self.relationshipExtractionSchema
             )
 
             let extracted = try Self.parseRelationshipResponse(response)
@@ -147,6 +147,32 @@ public struct RelationshipExtractionService: Sendable {
             throw error
         }
     }
+
+    // MARK: - JSON Schema
+
+    nonisolated(unsafe) static let relationshipExtractionSchema: [String: Any] = [
+        "type": "object",
+        "properties": [
+            "relationships": [
+                "type": "array",
+                "items": [
+                    "type": "object",
+                    "properties": [
+                        "from_entity": ["type": "string"],
+                        "to_entity": ["type": "string"],
+                        "type": ["type": "string"],
+                        "confidence": ["type": "number"],
+                        "evidence_chunk_ordinals": [
+                            "type": "array",
+                            "items": ["type": "integer"]
+                        ]
+                    ],
+                    "required": ["from_entity", "to_entity", "type", "confidence", "evidence_chunk_ordinals"]
+                ]
+            ]
+        ],
+        "required": ["relationships"]
+    ]
 
     // MARK: - Static Helpers
 

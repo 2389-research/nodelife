@@ -70,6 +70,7 @@ struct JobLogView: View {
                     Text(entry.message)
                         .font(.caption)
                         .foregroundStyle(entry.isError ? .red : .primary)
+                        .textSelection(.enabled)
                 }
                 .id(entry.id)
             }

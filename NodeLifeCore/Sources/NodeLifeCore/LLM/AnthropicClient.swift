@@ -22,11 +22,11 @@ public final class AnthropicClient: LLMClient, Sendable {
         system: String?,
         maxTokens: Int,
         temperature: Double?,
-        jsonMode: Bool = false
+        jsonSchema: [String: Any]? = nil
     ) async throws -> String {
         let request = try buildRequest(
             prompt: prompt, system: system, maxTokens: maxTokens, temperature: temperature,
-            jsonMode: jsonMode
+            jsonSchema: jsonSchema
         )
 
         let data: Data
@@ -41,12 +41,7 @@ public final class AnthropicClient: LLMClient, Sendable {
             throw LLMError.networkError(error.localizedDescription)
         }
 
-        var text = try AnthropicClient.parseResponseText(from: data)
-        // Prepend the prefilled "{" that the model continues from
-        if jsonMode {
-            text = "{" + text
-        }
-        return text
+        return try AnthropicClient.parseResponseText(from: data)
     }
 
     // Internal for testing
@@ -55,7 +50,7 @@ public final class AnthropicClient: LLMClient, Sendable {
         system: String?,
         maxTokens: Int,
         temperature: Double?,
-        jsonMode: Bool = false
+        jsonSchema: [String: Any]? = nil
     ) throws -> URLRequest {
         var request = URLRequest(url: AnthropicClient.apiURL)
         request.httpMethod = "POST"
@@ -63,14 +58,9 @@ public final class AnthropicClient: LLMClient, Sendable {
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue(AnthropicClient.apiVersion, forHTTPHeaderField: "anthropic-version")
 
-        var messages: [[String: String]] = [
+        let messages: [[String: String]] = [
             ["role": "user", "content": prompt]
         ]
-
-        // Prefill assistant response with "{" to force JSON output
-        if jsonMode {
-            messages.append(["role": "assistant", "content": "{"])
-        }
 
         var body: [String: Any] = [
             "model": model,
@@ -84,6 +74,16 @@ public final class AnthropicClient: LLMClient, Sendable {
 
         if let temperature = temperature {
             body["temperature"] = temperature
+        }
+
+        // Use structured output via output_config.format for JSON responses
+        if let schema = jsonSchema {
+            body["output_config"] = [
+                "format": [
+                    "type": "json_schema",
+                    "schema": schema
+                ]
+            ]
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
