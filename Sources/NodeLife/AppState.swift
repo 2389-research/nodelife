@@ -185,8 +185,8 @@ final class AppState {
     /// Build an LLM client from the user's saved settings
     private static func buildLLMClient() throws -> any LLMClient {
         let keychain = KeychainService(serviceName: "com.nodelife.settings")
-        let provider = UserDefaults.standard.string(forKey: "nodelife.llm.provider") ?? "openai"
-        let model = UserDefaults.standard.string(forKey: "nodelife.llm.model") ?? "gpt-5.4-nano"
+        let provider = UserDefaults.standard.string(forKey: "nodelife.llm.provider") ?? SettingsDefaults.provider
+        let model = UserDefaults.standard.string(forKey: "nodelife.llm.model") ?? SettingsDefaults.model
 
         let apiKey: String
         do {

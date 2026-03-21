@@ -4,10 +4,15 @@
 import SwiftUI
 import NodeLifeCore
 
+enum SettingsDefaults {
+    static let provider = "openai"
+    static let model = "gpt-5.4-nano"
+}
+
 struct SettingsView: View {
-    @AppStorage("nodelife.llm.provider") private var llmProvider: String = "openai"
+    @AppStorage("nodelife.llm.provider") private var llmProvider: String = SettingsDefaults.provider
     @State private var apiKey: String = ""
-    @AppStorage("nodelife.llm.model") private var model: String = "gpt-5.4-nano"
+    @AppStorage("nodelife.llm.model") private var model: String = SettingsDefaults.model
     @AppStorage("nodelife.extraction.mode") private var extractionMode: String = "quick"
     @AppStorage("nodelife.llm.baseURL") private var baseURL: String = ""
     @AppStorage("nodelife.jobs.maxConcurrency") private var maxConcurrency: Int = 2

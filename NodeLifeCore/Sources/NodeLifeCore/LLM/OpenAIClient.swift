@@ -11,7 +11,7 @@ public final class OpenAIClient: LLMClient, Sendable {
 
     public init(
         apiKey: String,
-        model: String = "gpt-5.4-nano",
+        model: String,
         baseURL: String = "https://api.openai.com/v1",
         session: URLSession = .shared
     ) {
@@ -60,8 +60,15 @@ public final class OpenAIClient: LLMClient, Sendable {
         if let temperature = temperature {
             body["temperature"] = temperature
         }
-        if jsonSchema != nil {
-            body["response_format"] = ["type": "json_object"]
+        if let schema = jsonSchema {
+            body["response_format"] = [
+                "type": "json_schema",
+                "json_schema": [
+                    "name": "response",
+                    "strict": true,
+                    "schema": schema
+                ]
+            ] as [String: Any]
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request

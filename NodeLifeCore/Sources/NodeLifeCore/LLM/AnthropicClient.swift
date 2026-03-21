@@ -11,7 +11,7 @@ public final class AnthropicClient: LLMClient, Sendable {
 
     private static let apiVersion = "2023-06-01"
 
-    public init(apiKey: String, model: String = "claude-sonnet-4-6", baseURL: String = "https://api.anthropic.com", session: URLSession = .shared) {
+    public init(apiKey: String, model: String, baseURL: String = "https://api.anthropic.com", session: URLSession = .shared) {
         self.apiKey = apiKey
         self.model = model
         self.baseURL = baseURL
