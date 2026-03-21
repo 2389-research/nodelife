@@ -185,8 +185,8 @@ final class AppState {
     /// Build an LLM client from the user's saved settings
     private static func buildLLMClient() throws -> any LLMClient {
         let keychain = KeychainService(serviceName: "com.nodelife.settings")
-        let provider = UserDefaults.standard.string(forKey: "nodelife.llm.provider") ?? "anthropic"
-        let model = UserDefaults.standard.string(forKey: "nodelife.llm.model") ?? "claude-sonnet-4-6"
+        let provider = UserDefaults.standard.string(forKey: "nodelife.llm.provider") ?? "openai"
+        let model = UserDefaults.standard.string(forKey: "nodelife.llm.model") ?? "gpt-5.4-nano"
 
         let apiKey: String
         do {
@@ -199,11 +199,14 @@ final class AppState {
             throw LLMError.apiError("No API key configured. Open Settings to add one.")
         }
 
+        let baseURL = UserDefaults.standard.string(forKey: "nodelife.llm.baseURL") ?? ""
+
         if provider == "openai" {
-            let baseURL = UserDefaults.standard.string(forKey: "nodelife.llm.baseURL") ?? "https://api.openai.com/v1"
-            return OpenAIClient(apiKey: apiKey, model: model, baseURL: baseURL)
+            let url = baseURL.isEmpty ? "https://api.openai.com/v1" : baseURL
+            return OpenAIClient(apiKey: apiKey, model: model, baseURL: url)
         } else {
-            return AnthropicClient(apiKey: apiKey, model: model)
+            let url = baseURL.isEmpty ? "https://api.anthropic.com" : baseURL
+            return AnthropicClient(apiKey: apiKey, model: model, baseURL: url)
         }
     }
 

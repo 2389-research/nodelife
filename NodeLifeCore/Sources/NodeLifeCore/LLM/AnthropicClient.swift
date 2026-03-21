@@ -6,14 +6,15 @@ import Foundation
 public final class AnthropicClient: LLMClient, Sendable {
     private let apiKey: String
     private let model: String
+    private let baseURL: String
     private let session: URLSession
 
-    private static let apiURL = URL(string: "https://api.anthropic.com/v1/messages")!
     private static let apiVersion = "2023-06-01"
 
-    public init(apiKey: String, model: String = "claude-sonnet-4-6", session: URLSession = .shared) {
+    public init(apiKey: String, model: String = "claude-sonnet-4-6", baseURL: String = "https://api.anthropic.com", session: URLSession = .shared) {
         self.apiKey = apiKey
         self.model = model
+        self.baseURL = baseURL
         self.session = session
     }
 
@@ -52,7 +53,10 @@ public final class AnthropicClient: LLMClient, Sendable {
         temperature: Double?,
         jsonSchema: [String: Any]? = nil
     ) throws -> URLRequest {
-        var request = URLRequest(url: AnthropicClient.apiURL)
+        guard let url = URL(string: "\(baseURL)/v1/messages") else {
+            throw LLMError.apiError("Invalid base URL: \(baseURL)")
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")

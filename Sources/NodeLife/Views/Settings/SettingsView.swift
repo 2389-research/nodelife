@@ -5,17 +5,34 @@ import SwiftUI
 import NodeLifeCore
 
 struct SettingsView: View {
-    @AppStorage("nodelife.llm.provider") private var llmProvider: String = "anthropic"
+    @AppStorage("nodelife.llm.provider") private var llmProvider: String = "openai"
     @State private var apiKey: String = ""
-    @AppStorage("nodelife.llm.model") private var model: String = "claude-sonnet-4-6"
+    @AppStorage("nodelife.llm.model") private var model: String = "gpt-5.4-nano"
     @AppStorage("nodelife.extraction.mode") private var extractionMode: String = "quick"
-    @AppStorage("nodelife.llm.baseURL") private var openaiBaseURL: String = "https://api.openai.com/v1"
+    @AppStorage("nodelife.llm.baseURL") private var baseURL: String = ""
     @AppStorage("nodelife.jobs.maxConcurrency") private var maxConcurrency: Int = 2
     @AppStorage("nodelife.jobs.maxRetries") private var maxRetries: Int = 3
     @State private var saveStatus: String = ""
     @State private var hasExistingKey: Bool = false
+    @State private var customModel: String = ""
 
     private let keychain = KeychainService(serviceName: "com.nodelife.settings")
+
+    private static let openaiModels = [
+        "gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"
+    ]
+
+    private static let anthropicModels = [
+        "claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-6"
+    ]
+
+    private var modelsForProvider: [String] {
+        llmProvider == "anthropic" ? Self.anthropicModels : Self.openaiModels
+    }
+
+    private var isCustomModel: Bool {
+        !modelsForProvider.contains(model)
+    }
 
     var body: some View {
         TabView {
@@ -28,7 +45,7 @@ struct SettingsView: View {
             dataTab
                 .tabItem { Label("Data", systemImage: "cylinder") }
         }
-        .frame(width: 480, height: 340)
+        .frame(width: 480, height: 400)
         .onAppear {
             checkExistingKey()
         }
@@ -41,26 +58,51 @@ struct SettingsView: View {
         Form {
             Section("Provider") {
                 Picker("Provider", selection: $llmProvider) {
-                    Text("Anthropic").tag("anthropic")
                     Text("OpenAI / Compatible").tag("openai")
+                    Text("Anthropic").tag("anthropic")
                 }
                 .onChange(of: llmProvider) { _, newValue in
                     if newValue == "anthropic" {
                         model = "claude-sonnet-4-6"
                     } else {
-                        model = "gpt-4o"
+                        model = "gpt-5.4-nano"
                     }
+                    customModel = ""
                     apiKey = ""
                     saveStatus = ""
                 }
+            }
 
-                TextField("Model", text: $model)
-                    .textFieldStyle(.roundedBorder)
-
-                if llmProvider == "openai" {
-                    TextField("Base URL", text: $openaiBaseURL)
-                        .textFieldStyle(.roundedBorder)
+            Section("Model") {
+                Picker("Model", selection: $model) {
+                    ForEach(modelsForProvider, id: \.self) { m in
+                        Text(m).tag(m)
+                    }
+                    Divider()
+                    Text("Custom…").tag("__custom__")
                 }
+                .onChange(of: model) { _, newValue in
+                    if newValue == "__custom__" {
+                        customModel = ""
+                    }
+                }
+
+                if model == "__custom__" {
+                    TextField("Model ID", text: $customModel)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit {
+                            if !customModel.isEmpty {
+                                model = customModel
+                            }
+                        }
+
+                    Text("Press Return to confirm")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                TextField("Base URL (leave blank for default)", text: $baseURL)
+                    .textFieldStyle(.roundedBorder)
             }
 
             Section("API Key") {
