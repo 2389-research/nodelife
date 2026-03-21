@@ -6,6 +6,7 @@ import NodeLifeCore
 
 struct SidebarView: View {
     @Bindable var appState: AppState
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         List(selection: $appState.selectedMeetingId) {
@@ -41,28 +42,74 @@ struct SidebarView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if appState.jobsPending > 0 {
-                VStack(spacing: 6) {
-                    ProgressView(
-                        value: Double(appState.jobsCompleted),
-                        total: Double(max(appState.jobsTotal, 1))
-                    )
-                    HStack {
-                        Text("Extracting \(appState.jobsCompleted)/\(appState.jobsTotal)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        if appState.jobsFailed > 0 {
-                            Text("\(appState.jobsFailed) failed")
-                                .font(.caption)
-                                .foregroundStyle(.red)
+            VStack(spacing: 0) {
+                if appState.jobsPending > 0 || appState.jobsFailed > 0 {
+                    VStack(spacing: 6) {
+                        if appState.jobsPending > 0 {
+                            ProgressView(
+                                value: Double(appState.jobsCompleted),
+                                total: Double(max(appState.jobsTotal, 1))
+                            )
+                        }
+                        HStack {
+                            if appState.jobsPending > 0 {
+                                Text("Extracting \(appState.jobsCompleted)/\(appState.jobsTotal)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if appState.jobsFailed > 0 {
+                                Button {
+                                    appState.retryFailedJobs()
+                                } label: {
+                                    Text("\(appState.jobsFailed) failed — retry")
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                }
+
+                Divider()
+
+                HStack(spacing: 12) {
+                    // Worker start/stop
+                    Button {
+                        if appState.isJobRunnerRunning {
+                            appState.stopJobRunner()
+                        } else {
+                            appState.startJobRunner()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(appState.isJobRunnerRunning ? .green : .red)
+                                .frame(width: 6, height: 6)
+                            Text(appState.isJobRunnerRunning ? "Workers On" : "Workers Off")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    // Open log window
+                    Button {
+                        openWindow(id: "job-log")
+                    } label: {
+                        Label("Log", systemImage: "doc.text.magnifyingglass")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.bar)
+                .padding(.vertical, 6)
             }
+            .background(.bar)
         }
         .searchable(text: $appState.searchQuery)
         .navigationTitle("NodeLife")

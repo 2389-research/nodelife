@@ -11,6 +11,14 @@ enum DetailMode: Hashable {
     case search
 }
 
+struct JobLogEntry: Identifiable {
+    let id = UUID()
+    let timestamp: Date
+    let meetingTitle: String
+    let message: String
+    let isError: Bool
+}
+
 @Observable
 @MainActor
 final class AppState {
@@ -26,6 +34,8 @@ final class AppState {
     var jobsCompleted: Int = 0
     var jobsFailed: Int = 0
     var jobsTotal: Int = 0
+    var isJobRunnerRunning: Bool = false
+    var jobLogs: [JobLogEntry] = []
     @ObservationIgnored
     private var _graphViewModel: GraphViewModel?
     var graphViewModel: GraphViewModel {
@@ -45,6 +55,7 @@ final class AppState {
 
     /// Start the background job runner for extraction processing
     func startJobRunner() {
+        guard jobRunner == nil else { return }
         let jobQueue = JobQueue(dbWriter: database.writer)
         let runner = JobRunner(jobQueue: jobQueue, config: JobRunnerConfig(
             pollInterval: 2.0,
@@ -54,40 +65,90 @@ final class AppState {
 
         let db = database
         Task.detached {
-            await runner.register(kind: "extraction", handler: ClosureJobHandler { job in
+            await runner.register(kind: "extraction", handler: ClosureJobHandler { [weak self] job in
                 let payload = try JSONDecoder().decode(ExtractionJobPayload.self, from: job.payload)
                 let meetingId = payload.meetingID
 
-                // Step 1: Normalize transcript (cached → chunked → normalized)
-                try db.write { dbConn in
-                    // Set status to chunked (chunks already stored by sync)
-                    if var meeting = try Meeting.fetchOne(dbConn, key: meetingId),
-                       meeting.transcriptStatus == .cached {
-                        meeting.transcriptStatus = .chunked
-                        try meeting.update(dbConn)
+                // Look up meeting title for logging
+                let meetingTitle: String = (try? db.read { dbConn in
+                    try Meeting.fetchOne(dbConn, key: meetingId)?.title
+                }) ?? "Unknown"
+
+                await self?.addLog(meetingTitle: meetingTitle, message: "Starting extraction")
+
+                do {
+                    // Step 1: Normalize transcript (cached → chunked → normalized)
+                    try db.write { dbConn in
+                        if var meeting = try Meeting.fetchOne(dbConn, key: meetingId),
+                           meeting.transcriptStatus == .cached {
+                            meeting.transcriptStatus = .chunked
+                            try meeting.update(dbConn)
+                        }
+                        try TranscriptNormalizer.normalize(meetingId: meetingId, in: dbConn)
                     }
-                    try TranscriptNormalizer.normalize(meetingId: meetingId, in: dbConn)
+
+                    // Step 2: Build LLM client from user settings
+                    let llmClient = try await MainActor.run {
+                        try AppState.buildLLMClient()
+                    }
+
+                    // Step 3: Extract entities
+                    await self?.addLog(meetingTitle: meetingTitle, message: "Extracting entities")
+                    let extractionService = ExtractionService(database: db, llmClient: llmClient)
+                    try await extractionService.extractEntities(meetingId: meetingId)
+
+                    // Step 4: Extract relationships
+                    await self?.addLog(meetingTitle: meetingTitle, message: "Extracting relationships")
+                    let relationshipService = RelationshipExtractionService(database: db, llmClient: llmClient)
+                    try await relationshipService.extractRelationships(meetingId: meetingId)
+
+                    await self?.addLog(meetingTitle: meetingTitle, message: "Complete")
+                } catch {
+                    await self?.addLog(meetingTitle: meetingTitle, message: error.localizedDescription, isError: true)
+                    throw error
                 }
-
-                // Step 2: Build LLM client from user settings
-                // Read settings on main actor to avoid keychain access issues
-                let llmClient = try await MainActor.run {
-                    try AppState.buildLLMClient()
-                }
-
-                // Step 3: Extract entities
-                let extractionService = ExtractionService(database: db, llmClient: llmClient)
-                try await extractionService.extractEntities(meetingId: meetingId)
-
-                // Step 4: Extract relationships
-                let relationshipService = RelationshipExtractionService(database: db, llmClient: llmClient)
-                try await relationshipService.extractRelationships(meetingId: meetingId)
             })
 
             try? await runner.start()
         }
 
+        isJobRunnerRunning = true
         startJobPolling()
+    }
+
+    /// Stop the job runner
+    func stopJobRunner() {
+        Task {
+            await jobRunner?.stop()
+        }
+        isJobRunnerRunning = false
+    }
+
+    /// Retry all failed jobs
+    func retryFailedJobs() {
+        Task {
+            try? database.write { db in
+                try db.execute(
+                    sql: "UPDATE jobs SET status = 'pending', attempts = 0, lastError = NULL WHERE status = 'failed'"
+                )
+            }
+        }
+    }
+
+    private func addLog(meetingTitle: String, message: String, isError: Bool = false) {
+        let entry = JobLogEntry(
+            timestamp: Date(),
+            meetingTitle: meetingTitle,
+            message: message,
+            isError: isError
+        )
+        Task { @MainActor in
+            self.jobLogs.append(entry)
+            // Keep last 500 entries
+            if self.jobLogs.count > 500 {
+                self.jobLogs.removeFirst(self.jobLogs.count - 500)
+            }
+        }
     }
 
     /// Poll the job queue for progress updates
