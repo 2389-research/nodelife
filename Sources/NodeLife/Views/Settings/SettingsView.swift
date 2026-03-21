@@ -35,10 +35,6 @@ struct SettingsView: View {
         llmProvider == "anthropic" ? Self.anthropicModels : Self.openaiModels
     }
 
-    private var isCustomModel: Bool {
-        !modelsForProvider.contains(model)
-    }
-
     var body: some View {
         TabView {
             llmTab
@@ -79,31 +75,31 @@ struct SettingsView: View {
             }
 
             Section("Model") {
-                Picker("Model", selection: $model) {
+                Picker("Model", selection: Binding(
+                    get: { modelsForProvider.contains(model) ? model : "__custom__" },
+                    set: { newValue in
+                        if newValue == "__custom__" {
+                            customModel = model.hasPrefix("__") ? "" : model
+                        } else {
+                            model = newValue
+                        }
+                    }
+                )) {
                     ForEach(modelsForProvider, id: \.self) { m in
                         Text(m).tag(m)
                     }
                     Divider()
                     Text("Custom…").tag("__custom__")
                 }
-                .onChange(of: model) { _, newValue in
-                    if newValue == "__custom__" {
-                        customModel = ""
-                    }
-                }
 
-                if model == "__custom__" {
+                if !modelsForProvider.contains(model) {
                     TextField("Model ID", text: $customModel)
                         .textFieldStyle(.roundedBorder)
-                        .onSubmit {
+                        .onChange(of: customModel) {
                             if !customModel.isEmpty {
                                 model = customModel
                             }
                         }
-
-                    Text("Press Return to confirm")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
                 TextField("Base URL (leave blank for default)", text: $baseURL)

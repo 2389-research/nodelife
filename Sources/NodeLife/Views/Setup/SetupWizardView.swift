@@ -11,9 +11,9 @@ struct SetupWizardView: View {
     @AppStorage("nodelife.sources.granola.enabled") private var granolaEnabled = true
     // Token is discovered automatically from Granola's installed session file
     // LLM settings
-    @AppStorage("nodelife.llm.provider") private var llmProvider = "anthropic"
-    @AppStorage("nodelife.llm.model") private var llmModel = "claude-sonnet-4-6"
-    @AppStorage("nodelife.llm.baseURL") private var llmBaseURL = "https://api.openai.com/v1"
+    @AppStorage("nodelife.llm.provider") private var llmProvider = SettingsDefaults.provider
+    @AppStorage("nodelife.llm.model") private var llmModel = SettingsDefaults.model
+    @AppStorage("nodelife.llm.baseURL") private var llmBaseURL = ""
 
     // Extraction settings
     @AppStorage("nodelife.extraction.mode") private var extractionMode = "quick"

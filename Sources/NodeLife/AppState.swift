@@ -186,7 +186,10 @@ final class AppState {
     private static func buildLLMClient() throws -> any LLMClient {
         let keychain = KeychainService(serviceName: "com.nodelife.settings")
         let provider = UserDefaults.standard.string(forKey: "nodelife.llm.provider") ?? SettingsDefaults.provider
-        let model = UserDefaults.standard.string(forKey: "nodelife.llm.model") ?? SettingsDefaults.model
+        var model = UserDefaults.standard.string(forKey: "nodelife.llm.model") ?? SettingsDefaults.model
+        if model.hasPrefix("__") {
+            model = SettingsDefaults.model
+        }
 
         let apiKey: String
         do {

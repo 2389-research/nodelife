@@ -111,6 +111,13 @@ public final class AnthropicClient: LLMClient, Sendable {
             throw LLMError.decodingError("Missing content array in response")
         }
 
+        // Structured output may return "type": "json" blocks instead of "text"
+        if let jsonBlock = content.first(where: { $0["type"] as? String == "json" }),
+           let jsonData = jsonBlock["json"] {
+            let data = try JSONSerialization.data(withJSONObject: jsonData)
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+
         guard let firstBlock = content.first(where: { $0["type"] as? String == "text" }),
               let text = firstBlock["text"] as? String else {
             throw LLMError.noContent

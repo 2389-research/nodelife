@@ -31,8 +31,9 @@ struct LLMConfigStepView: View {
                     if newValue == "anthropic" {
                         model = "claude-sonnet-4-6"
                     } else {
-                        model = "gpt-4o"
+                        model = "gpt-5.4-nano"
                     }
+                    baseURL = ""
                     apiKey = ""
                     saveStatus = ""
                 }
@@ -40,10 +41,8 @@ struct LLMConfigStepView: View {
                 TextField("Model", text: $model)
                     .textFieldStyle(.roundedBorder)
 
-                if provider == "openai" {
-                    TextField("Base URL", text: $baseURL)
-                        .textFieldStyle(.roundedBorder)
-                }
+                TextField("Base URL (leave blank for default)", text: $baseURL)
+                    .textFieldStyle(.roundedBorder)
 
                 SecureField("API Key", text: $apiKey)
                     .textFieldStyle(.roundedBorder)
