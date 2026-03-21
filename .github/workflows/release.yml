@@ -96,6 +96,9 @@ jobs:
           mkdir -p "$APP_PATH/Contents/Frameworks"
           cp "$EXECUTABLE" "$APP_PATH/Contents/MacOS/$APP_NAME"
 
+          # Add rpath so the executable can find frameworks in Contents/Frameworks
+          install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_PATH/Contents/MacOS/$APP_NAME"
+
           # Copy Sparkle.framework into the app bundle
           SPARKLE_FW=$(find build/DerivedData -name "Sparkle.framework" -path "*/Release/*" -not -path "*/Sparkle.framework/*" | head -1)
           if [ -n "$SPARKLE_FW" ]; then
