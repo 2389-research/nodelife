@@ -18,11 +18,13 @@ public enum CommunityDetection: Sendable {
 
         for _ in 0..<maxIterations {
             var changed = false
+            var newLabels = labels
             for i in 0..<n {
                 let neighbors = adjacency[i]
                 guard !neighbors.isEmpty else { continue }
 
-                var labelCounts: [Int: Int] = [:]
+                // Include node's own label in the vote to stabilize small components
+                var labelCounts: [Int: Int] = [labels[i]: 1]
                 for neighbor in neighbors {
                     labelCounts[labels[neighbor], default: 0] += 1
                 }
@@ -37,10 +39,11 @@ public enum CommunityDetection: Sendable {
                 }
 
                 if bestLabel != labels[i] {
-                    labels[i] = bestLabel
+                    newLabels[i] = bestLabel
                     changed = true
                 }
             }
+            labels = newLabels
             if !changed { break }
         }
 
