@@ -677,7 +677,7 @@ private func insertExtractionRun(in db: Database, meetingID: UUID) throws -> Ext
     #expect(cooc.edges.count == 1)
 }
 
-@Test func forceLayoutProducesPositionedNodes() async throws {
+@Test @MainActor func forceLayoutProducesPositionedNodes() async throws {
     let db = try AppDatabase.makeInMemory()
 
     try db.write { dbConn in
@@ -697,11 +697,12 @@ private func insertExtractionRun(in db: Database, meetingID: UUID) throws -> Ext
 
     let builder = GraphBuilder(database: db)
     let projection = try await builder.build(projectionType: .full, filter: .default)
-    let layout = ForceDirectedLayout(iterations: 50)
-    let positioned = await layout.layout(nodes: projection.nodes, edges: projection.edges, bounds: CGSize(width: 800, height: 600))
+    let sim = ForceSimulation()
+    sim.load(projection: projection)
+    sim.runBatch(iterations: 50)
 
-    #expect(positioned.count == 2)
+    #expect(sim.positions.count == 2)
     // Nodes should have been moved from their initial zero positions
-    let allAtOrigin = positioned.allSatisfy { $0.position == .zero }
+    let allAtOrigin = sim.positions.allSatisfy { $0 == .zero }
     #expect(allAtOrigin == false)
 }
