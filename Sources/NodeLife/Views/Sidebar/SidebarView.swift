@@ -5,29 +5,15 @@ import SwiftUI
 import NodeLifeCore
 
 struct SidebarView: View {
-    @Bindable var appState: AppState
     @Environment(\.openWindow) private var openWindow
+    @Bindable var appState: AppState
 
     var body: some View {
         List(selection: $appState.selectedMeetingId) {
             Section("Meetings") {
                 ForEach(appState.meetings) { meeting in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(meeting.title)
-                            .font(.headline)
-                        HStack {
-                            Text(meeting.date, style: .date)
-                            Spacer()
-                            Text(meeting.transcriptStatus.rawValue)
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .glassEffect(.regular, in: .capsule)
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                    .tag(meeting.id)
+                    meetingRow(meeting)
+                        .tag(meeting.id)
                 }
             }
 
@@ -41,74 +27,7 @@ struct SidebarView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 0) {
-                if appState.jobsPending > 0 || appState.jobsFailed > 0 {
-                    VStack(spacing: 6) {
-                        if appState.jobsPending > 0 {
-                            ProgressView(
-                                value: Double(appState.jobsCompleted),
-                                total: Double(max(appState.jobsTotal, 1))
-                            )
-                        }
-                        HStack {
-                            if appState.jobsPending > 0 {
-                                Text("Extracting \(appState.jobsCompleted)/\(appState.jobsTotal)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if appState.jobsFailed > 0 {
-                                Button {
-                                    appState.retryFailedJobs()
-                                } label: {
-                                    Text("\(appState.jobsFailed) failed — retry")
-                                        .font(.caption)
-                                        .foregroundStyle(.red)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                }
-
-                Divider()
-
-                HStack(spacing: 12) {
-                    // Worker start/stop
-                    Button {
-                        if appState.isJobRunnerRunning {
-                            appState.stopJobRunner()
-                        } else {
-                            appState.startJobRunner()
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(appState.isJobRunnerRunning ? .green : .red)
-                                .frame(width: 6, height: 6)
-                            Text(appState.isJobRunnerRunning ? "Workers On" : "Workers Off")
-                                .font(.caption)
-                        }
-                    }
-                    .buttonStyle(.glass)
-
-                    Spacer()
-
-                    // Open log window
-                    Button {
-                        openWindow(id: "job-log")
-                    } label: {
-                        Label("Log", systemImage: "doc.text.magnifyingglass")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.glass)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-            }
-            .glassEffect(.regular, in: .rect(cornerRadius: 0))
+            statusBar
         }
         .searchable(text: $appState.searchQuery)
         .navigationTitle("NodeLife")
@@ -121,6 +40,107 @@ struct SidebarView: View {
             }
         }
     }
+
+    // MARK: - Subviews
+
+    private func meetingRow(_ meeting: Meeting) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(meeting.title)
+                .font(.headline)
+            HStack {
+                Text(meeting.date, style: .date)
+                Spacer()
+                Text(meeting.transcriptStatus.rawValue)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .glassEffect(.regular, in: .capsule)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var statusBar: some View {
+        VStack(spacing: 0) {
+            if appState.jobsPending > 0 || appState.jobsFailed > 0 {
+                jobProgress
+            }
+
+            Divider()
+
+            HStack(spacing: 12) {
+                workerToggle
+                Spacer()
+                logButton
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+        .glassEffect(.regular, in: .rect(cornerRadius: 0))
+    }
+
+    private var jobProgress: some View {
+        VStack(spacing: 6) {
+            if appState.jobsPending > 0 {
+                ProgressView(
+                    value: Double(appState.jobsCompleted),
+                    total: Double(max(appState.jobsTotal, 1))
+                )
+            }
+            HStack {
+                if appState.jobsPending > 0 {
+                    Text("Extracting \(appState.jobsCompleted)/\(appState.jobsTotal)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if appState.jobsFailed > 0 {
+                    Button {
+                        appState.retryFailedJobs()
+                    } label: {
+                        Text("\(appState.jobsFailed) failed — retry")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var workerToggle: some View {
+        Button {
+            if appState.isJobRunnerRunning {
+                appState.stopJobRunner()
+            } else {
+                appState.startJobRunner()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(appState.isJobRunnerRunning ? .green : .red)
+                    .frame(width: 6, height: 6)
+                Text(appState.isJobRunnerRunning ? "Workers On" : "Workers Off")
+                    .font(.caption)
+            }
+        }
+        .buttonStyle(.glass)
+    }
+
+    private var logButton: some View {
+        Button {
+            openWindow(id: "job-log")
+        } label: {
+            Label("Log", systemImage: "doc.text.magnifyingglass")
+                .font(.caption)
+        }
+        .buttonStyle(.glass)
+    }
+
+    // MARK: - Helpers
 
     private func iconForKind(_ kind: EntityKind) -> String {
         switch kind {

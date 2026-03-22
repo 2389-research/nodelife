@@ -41,6 +41,8 @@ struct GraphCanvasView: View {
         }
     }
 
+    // MARK: - Subviews
+
     @ViewBuilder
     private func graphCanvas(projection: GraphProjection) -> some View {
         GeometryReader { geometry in
@@ -162,7 +164,8 @@ struct GraphCanvasView: View {
         }
     }
 
-    /// Tick the simulation once per TimelineView frame, outside the Canvas render closure.
+    // MARK: - Helpers
+
     private func tickSimulation(date: Date) -> Bool {
         if date != lastTickDate {
             lastTickDate = date
