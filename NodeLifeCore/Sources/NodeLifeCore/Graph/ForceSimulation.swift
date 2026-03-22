@@ -28,6 +28,7 @@ public final class ForceSimulation {
     // Progressive reveal
     public private(set) var revealedCount: Int = 0
     public private(set) var revealOrder: [Int] = []
+    private var revealPosition: [Int] = []  // reverse lookup: revealPosition[nodeIndex] = position in revealOrder
 
     // Force constants
     public var repulsionStrength: Double = 200.0
@@ -70,31 +71,18 @@ public final class ForceSimulation {
         nodeIDs = nodes.map { $0.id }
         nodeIndex = Dictionary(uniqueKeysWithValues: nodes.enumerated().map { ($1.id, $0) })
 
-        edgeIndices = edges.compactMap { edge -> (Int, Int)? in
+        let resolvedEdges: [(Int, Int, Double)] = edges.compactMap { edge in
             guard let si = nodeIndex[edge.sourceNodeID],
                   let ti = nodeIndex[edge.targetNodeID] else { return nil }
-            return (si, ti)
+            return (si, ti, edge.weight)
         }
-        edgeWeights = edges.compactMap { edge -> Double? in
-            guard nodeIndex[edge.sourceNodeID] != nil,
-                  nodeIndex[edge.targetNodeID] != nil else { return nil }
-            return edge.weight
-        }
+        edgeIndices = resolvedEdges.map { ($0.0, $0.1) }
+        edgeWeights = resolvedEdges.map { $0.2 }
 
         degrees = Array(repeating: 0, count: nodes.count)
         for (src, tgt) in edgeIndices {
             degrees[src] += 1
             degrees[tgt] += 1
-        }
-
-        // Jitter overlapping positions
-        for i in 0..<positions.count {
-            for j in (i + 1)..<positions.count {
-                if positions[i] == positions[j] {
-                    positions[j].x += Double.random(in: -1...1)
-                    positions[j].y += Double.random(in: -1...1)
-                }
-            }
         }
 
         // Community detection
@@ -107,7 +95,21 @@ public final class ForceSimulation {
 
         seedClusterPositions()
 
+        // Jitter any remaining overlapping positions (e.g. single-cluster graphs)
+        for i in 0..<positions.count {
+            for j in (i + 1)..<positions.count {
+                if positions[i] == positions[j] {
+                    positions[j].x += Double.random(in: -1...1)
+                    positions[j].y += Double.random(in: -1...1)
+                }
+            }
+        }
+
         revealOrder = Array(0..<nodes.count).sorted { degrees[$0] > degrees[$1] }
+        revealPosition = Array(repeating: 0, count: nodes.count)
+        for (pos, nodeIdx) in revealOrder.enumerated() {
+            revealPosition[nodeIdx] = pos
+        }
         revealedCount = 0
 
         tickCount = 0
@@ -253,10 +255,10 @@ public final class ForceSimulation {
         // 5. Collision (radius-based overlap prevention using quadtree spatial query)
         let baseRadius = 6.0
         let maxCollisionDist = (baseRadius + collisionPadding) * 2
-        for i in 0..<positions.count where !pinned[i] {
+        for i in 0..<positions.count {
             let ri = baseRadius + collisionPadding
             let neighbors = tree.nodesWithin(distance: maxCollisionDist, of: positions[i])
-            for j in neighbors where j != i {
+            for j in neighbors where j > i {
                 let rj = baseRadius + collisionPadding
                 let dx = positions[j].x - positions[i].x
                 let dy = positions[j].y - positions[i].y
@@ -266,8 +268,10 @@ public final class ForceSimulation {
                     let overlap = (minDist - dist) * 0.5
                     let nx = dx / dist
                     let ny = dy / dist
-                    velocities[i].x -= nx * overlap
-                    velocities[i].y -= ny * overlap
+                    if !pinned[i] {
+                        velocities[i].x -= nx * overlap
+                        velocities[i].y -= ny * overlap
+                    }
                     if !pinned[j] {
                         velocities[j].x += nx * overlap
                         velocities[j].y += ny * overlap
@@ -328,19 +332,20 @@ public final class ForceSimulation {
     }
 
     public func nodeOpacity(at index: Int) -> Double {
-        guard !revealOrder.isEmpty else { return 1.0 }
-        guard let revealPos = revealOrder.firstIndex(of: index) else { return 1.0 }
+        guard !revealPosition.isEmpty, index < revealPosition.count else { return 1.0 }
+        let revealPos = revealPosition[index]
         if revealPos >= revealedCount { return 0.0 }
         let framesSinceReveal = revealedCount - revealPos
         return min(1.0, Double(framesSinceReveal) / 6.0)
     }
 
     public func hitTest(point: CGPoint, zoom: CGFloat) -> Int? {
+        let tapPadding = 4.0 / zoom
         for i in 0..<positions.count {
-            let radius = nodeRadius(at: i) + 4
+            let radius = nodeRadius(at: i) + tapPadding
             let dx = point.x - positions[i].x
             let dy = point.y - positions[i].y
-            if dx * dx + dy * dy <= radius * radius / (zoom * zoom) {
+            if dx * dx + dy * dy <= radius * radius {
                 return i
             }
         }
