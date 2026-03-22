@@ -14,7 +14,10 @@ final class GraphViewModel {
 
     let simulation = ForceSimulation()
 
-    var projection: GraphProjection?
+    var projection: GraphProjection? {
+        didSet { rebuildNodeMetadata() }
+    }
+    private(set) var nodeMetadata: [UUID: (type: EntityKind, label: String)] = [:]
     var projectionType: ProjectionType = .full
     var filter: GraphFilter = .default
     var isLoading: Bool = false
@@ -144,5 +147,15 @@ final class GraphViewModel {
     func resetCamera() {
         cameraOffset = .zero
         cameraZoom = 1.0
+    }
+
+    private func rebuildNodeMetadata() {
+        guard let nodes = projection?.nodes else {
+            nodeMetadata = [:]
+            return
+        }
+        nodeMetadata = Dictionary(
+            uniqueKeysWithValues: nodes.map { ($0.id, ($0.type, $0.label)) }
+        )
     }
 }

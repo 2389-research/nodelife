@@ -44,17 +44,13 @@ struct GraphCanvasView: View {
     @ViewBuilder
     private func graphCanvas(projection: GraphProjection) -> some View {
         GeometryReader { geometry in
-            TimelineView(.animation) { timeline in
+            TimelineView(.animation(paused: !viewModel.simulation.isRunning)) { timeline in
                 let _ = tickSimulation(date: timeline.date)
                 Canvas { context, size in
                     let sim = viewModel.simulation
                     let offset = viewModel.cameraOffset
                     let zoom = viewModel.cameraZoom
-
-                    // Build O(1) lookup for node metadata
-                    let nodeMetadata: [UUID: (type: EntityKind, label: String)] = Dictionary(
-                        uniqueKeysWithValues: projection.nodes.map { ($0.id, ($0.type, $0.label)) }
-                    )
+                    let nodeMetadata = viewModel.nodeMetadata
 
                     // Draw edges
                     for edge in projection.edges {

@@ -15,6 +15,7 @@ public final class ForceSimulation {
     public private(set) var nodeIndex: [UUID: Int] = [:]
     public private(set) var nodeIDs: [UUID] = []
     public private(set) var degrees: [Int] = []
+    private var cachedMaxLogDegree: Double = 0
 
     // Edge topology as index pairs for fast iteration
     private var edgeIndices: [(Int, Int)] = []
@@ -84,6 +85,7 @@ public final class ForceSimulation {
             degrees[src] += 1
             degrees[tgt] += 1
         }
+        cachedMaxLogDegree = log(Double((degrees.max() ?? 1) + 1))
 
         // Community detection
         let adjacency = CommunityDetection.buildAdjacency(
@@ -326,8 +328,7 @@ public final class ForceSimulation {
         guard index >= 0 && index < degrees.count else { return 6 }
         let degree = max(1, degrees[index])
         let logDegree = log(Double(degree) + 1)
-        let maxLogDegree = log(Double((degrees.max() ?? 1) + 1))
-        let t = maxLogDegree > 0 ? logDegree / maxLogDegree : 0.5
+        let t = cachedMaxLogDegree > 0 ? logDegree / cachedMaxLogDegree : 0.5
         return 4.0 + t * 12.0
     }
 
