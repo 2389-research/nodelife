@@ -315,7 +315,7 @@ public final class ForceSimulation {
     public func wake() {
         isRunning = true
         wakeTime = Date()
-        tickCount = max(tickCount, dampingDecayTicks / 2)
+        tickCount = dampingDecayTicks / 2
     }
 
     public func stop() {
@@ -343,6 +343,7 @@ public final class ForceSimulation {
     public func hitTest(point: CGPoint, zoom: CGFloat) -> Int? {
         let tapPadding = 4.0 / zoom
         for i in 0..<positions.count {
+            guard nodeOpacity(at: i) > 0 else { continue }
             let radius = nodeRadius(at: i) + tapPadding
             let dx = point.x - positions[i].x
             let dy = point.y - positions[i].y

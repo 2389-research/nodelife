@@ -118,6 +118,8 @@ struct GraphCanvasView: View {
                                     point: worldPoint, zoom: viewModel.cameraZoom
                                 ) {
                                     viewModel.startNodeDrag(index: hitIndex, at: worldPoint)
+                                } else {
+                                    dragStartOffset = viewModel.cameraOffset
                                 }
                             }
 

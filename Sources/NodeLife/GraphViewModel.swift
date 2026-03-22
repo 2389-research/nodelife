@@ -93,6 +93,9 @@ final class GraphViewModel {
     func dragNode(to position: CGPoint) {
         guard let index = draggedNodeIndex else { return }
         simulation.moveNode(index: index, to: position)
+        if !simulation.isRunning {
+            simulation.wake()
+        }
     }
 
     func endNodeDrag() {
@@ -109,14 +112,16 @@ final class GraphViewModel {
         if multiSelect {
             if selectedNodeIDs.contains(nodeID) {
                 selectedNodeIDs.remove(nodeID)
+                selectedEntityID = nil
             } else {
                 selectedNodeIDs.insert(nodeID)
+                selectedEntityID = projection?.nodes.first { $0.id == nodeID }?.entityID
             }
         } else {
             selectedNodeIDs = [nodeID]
+            selectedEntityID = projection?.nodes.first { $0.id == nodeID }?.entityID
         }
         selectedEdgeID = nil
-        selectedEntityID = projection?.nodes.first { $0.id == nodeID }?.entityID
     }
 
     func selectEdge(_ edgeID: UUID) {
