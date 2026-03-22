@@ -1,14 +1,14 @@
 // ABOUTME: Root Package.swift for the merged NodeLife project
 // ABOUTME: Defines the SwiftUI app target and depends on local NodeLifeCore package
 
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 
 import PackageDescription
 
 let package = Package(
     name: "NodeLife",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v26)
     ],
     products: [
         .library(

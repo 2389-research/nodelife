@@ -46,11 +46,12 @@ struct GraphFilterPanel: View {
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Button("Reset") { workingFilter = .default }
+                    .buttonStyle(.glass)
                 Spacer()
                 Button("Apply") {
                     Task { await viewModel.updateFilter(workingFilter) }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
             }
             .padding()
         }

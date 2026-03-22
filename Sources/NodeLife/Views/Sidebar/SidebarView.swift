@@ -22,8 +22,7 @@ struct SidebarView: View {
                                 .font(.caption2)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(.quaternary)
-                                .clipShape(Capsule())
+                                .glassEffect(.regular, in: .capsule)
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -93,7 +92,7 @@ struct SidebarView: View {
                                 .font(.caption)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.glass)
 
                     Spacer()
 
@@ -104,12 +103,12 @@ struct SidebarView: View {
                         Label("Log", systemImage: "doc.text.magnifyingglass")
                             .font(.caption)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.glass)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
             }
-            .background(.bar)
+            .glassEffect(.regular, in: .rect(cornerRadius: 0))
         }
         .searchable(text: $appState.searchQuery)
         .navigationTitle("NodeLife")

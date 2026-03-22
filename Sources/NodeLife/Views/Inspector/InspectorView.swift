@@ -38,6 +38,8 @@ struct InspectorView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     }
+                    .padding()
+                    .glassEffect(.regular, in: .rect(cornerRadius: 12))
 
                     Divider()
 
@@ -66,8 +68,7 @@ struct InspectorView: View {
                                         .font(.caption)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
-                                        .background(.blue.opacity(0.1))
-                                        .clipShape(Capsule())
+                                        .glassEffect(.regular.tint(.blue), in: .capsule)
                                     Spacer()
                                     Text("w: \(rel.weight, specifier: "%.1f")")
                                         .font(.caption2)
